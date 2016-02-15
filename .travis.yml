@@ -32,7 +32,7 @@ before_script:
     - vault server -dev &
     - VAULT_ADDR=http://127.0.0.1:8200 ./vault token-create -id="test12345"
 install:
-  - install-vault-${VAULT_BRANCH}.sh
+  - bin/install-vault-${VAULT_BRANCH}.sh
 script:
   - travis-cargo build
   - travis-cargo test
