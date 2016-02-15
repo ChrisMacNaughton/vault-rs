@@ -1,4 +1,4 @@
-extern crate vault;
+extern crate hashicorp_vault as vault;
 
 fn main() {
     let hosts = vec!["http://localhost:8200"];
