@@ -13,7 +13,8 @@ matrix:
     - rust:
       - nightly
       - beta
-    - env: VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
+    - env:
+      - VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
 env:
     - VAULT_VERSION=0.4.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
     - VAULT_VERSION=0.5.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
