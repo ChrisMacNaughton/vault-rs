@@ -2,6 +2,9 @@
 name = "vault"
 version = "0.1.0"
 authors = ["Chris MacNaughton <chmacnaughton@gmail.com>"]
+description = "HashiCorp Vault API client for Rust"
+repository = "https://github.com/chrismacnaughton/vault-rs"
+license = "MIT"
 
 [dependencies]
 hyper = "~0.7"
