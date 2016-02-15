@@ -13,8 +13,11 @@ matrix:
     - rust:
       - nightly
       - beta
+    - env: TRAVIS_CARGO_NIGHTLY_FEATURE="" VAULT_BRANCH=head
 env:
-    - TRAVIS_CARGO_NIGHTLY_FEATURE=""
+    - TRAVIS_CARGO_NIGHTLY_FEATURE="" VAULT_BRANCH=release VAULT_VERSION=0.4.1
+    - TRAVIS_CARGO_NIGHTLY_FEATURE="" VAULT_BRANCH=release VAULT_VERSION=0.5.0
+    - TRAVIS_CARGO_NIGHTLY_FEATURE="" VAULT_BRANCH=head
 cache:
   apt: true
   rust-download: true
@@ -24,14 +27,15 @@ notifications:
   email:
     on_success: never
 before_script:
+    - export PATH=$HOME/bin:$PATH
     - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-    - wget https://releases.hashicorp.com/vault/0.5.0/vault_0.5.0_linux_amd64.zip && unzip vault_0.5.0_linux_amd64.zip
-    - ./vault server -dev &
+    - vault server -dev &
     - VAULT_ADDR=http://127.0.0.1:8200 ./vault token-create -id="test12345"
+install:
+  - ./install-vault-${VAULT_BRANCH}.sh
 script:
-  - |
-      travis-cargo build &&
-      travis-cargo test
+  - travis-cargo build
+  - travis-cargo test
 after_success:
   - travis-cargo coveralls --no-sudo
 sudo: false
