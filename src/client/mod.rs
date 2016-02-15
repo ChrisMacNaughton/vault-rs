@@ -37,7 +37,7 @@ struct SecretAuth {
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct VaultSecret {
-    lease_id: String,
+    lease_id: Option<String>,
     renewable: bool,
     lease_duration: i64,
     data: SecretData,
