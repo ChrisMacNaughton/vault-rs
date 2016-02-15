@@ -85,6 +85,21 @@ impl<'a> VaultClient<'a> {
         })
     }
 
+    ///
+    /// Saves a secret
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let hosts = vec!["http://127.0.0.1:8200"];
+    /// let token = "test12345";
+    /// let client = Client::new(hosts, token).unwrap();
+    /// let res = client.set_secret("hello", "world");
+    /// assert!(res.is_ok());
+    /// # }
+    /// ```
+
     pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, &str> {
         match self.post(&format!("/v1/secret/{}", key)[..], &format!("{{\"value\": \"{}\"}}", value)[..]) {
             Ok(s) => {
@@ -99,6 +114,24 @@ impl<'a> VaultClient<'a> {
             }
         }
     }
+
+    ///
+    /// Fetches a saved secret
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let hosts = vec!["http://127.0.0.1:8200"];
+    /// let token = "test12345";
+    /// let client = Client::new(hosts, token).unwrap();
+    /// let res = client.set_secret("hello", "world");
+    /// assert!(res.is_ok());
+    /// let res = client.get_secret("hello");
+    /// assert!(res.is_ok());
+    /// assert_eq!(res.unwrap(), "world");
+    /// # }
+    /// ```
 
     pub fn get_secret(&self, key: &str) -> Result<String, &str> {
         match self.get(&format!("/v1/secret/{}", key)[..]) {
@@ -124,8 +157,46 @@ impl<'a> VaultClient<'a> {
         }
     }
 
+    ///
+    /// Deletes a saved secret
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let hosts = vec!["http://127.0.0.1:8200"];
+    /// let token = "test12345";
+    /// let client = Client::new(hosts, token).unwrap();
+    /// let res = client.set_secret("hello", "world");
+    /// assert!(res.is_ok());
+    /// let res = client.delete_secret("hello");
+    /// assert!(res.is_ok());
+    /// # }
+    /// ```
+    pub fn delete_secret(&self, key: &str) -> Result<&str, &str> {
+        match self.delete(&format!("/v1/secret/{}", key)[..]) {
+            Ok(s) => {
+                match s.status {
+                    StatusCode::NoContent => Ok(""),
+                    _ => { Err("Error setting secret")}
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+                Err("err")
+            }
+        }
+    }
+
     fn get(&self, endpoint: &str) -> Result<Response, Error> {
         self.client.get(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json())
+            .send()
+    }
+
+    fn delete(&self, endpoint: &str) -> Result<Response, Error> {
+        self.client.delete(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .send()
@@ -144,8 +215,3 @@ impl<'a> VaultClient<'a> {
     // }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::VaultClient;
-
-// }

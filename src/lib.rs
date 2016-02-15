@@ -38,5 +38,21 @@ mod tests {
         // assert_eq!(Err("Forbidden".to_string()), client);
         assert!(client.is_err());
     }
+
+    #[test]
+    fn it_can_delete_a_secret() {
+        let hosts = vec!["http://127.0.0.1:8200"];
+        let token = "test12345";
+        let client = Client::new(hosts, token).unwrap();
+
+        let res = client.set_secret("hello", "world");
+        assert!(res.is_ok());
+        let res = client.get_secret("hello").unwrap();
+        assert_eq!(res, "world");
+        let res = client.delete_secret("hello");
+        assert!(res.is_ok());
+        let res = client.get_secret("hello");
+        assert!(res.is_err());
+    }
 }
 
