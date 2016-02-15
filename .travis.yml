@@ -30,12 +30,12 @@ notifications:
   email:
     on_success: never
 before_script:
-    - export PATH=$HOME/bin:$PATH
     - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-    - vault server -dev &
     - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
 install:
   - bin/install-vault-${VAULT_BRANCH}.sh
+  - export PATH=$HOME/bin:$PATH
+  - vault server -dev > /dev/null 2>&1 &
 script:
   - travis-cargo build
   - travis-cargo test
