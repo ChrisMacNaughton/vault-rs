@@ -11,3 +11,7 @@ vault server -dev
 ```bash
 vault token-create -id="test12345"
 ```
+
+## TODO
+
+- Add support for managing Vault
