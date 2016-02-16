@@ -1,8 +1,10 @@
 addons:
   apt:
     packages:
-    - libcurl4-openssl-dev
-    - unzip
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - unzip
 language: rust
 rust:
 - nightly
