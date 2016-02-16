@@ -1,17 +1,54 @@
 use std::collections::HashMap;
+use std::error::Error;
+use std::io;
+use std::io::ErrorKind;
 use std::io::Read;
 
 use rand::{OsRng, Rng};
 
+use hyper;
 use hyper::Client;
 use hyper::client::response::Response;
-use hyper::error::Error;
+//use hyper::error::Error;
 use hyper::header;
 // use hyper::header::Connection;
 use hyper::status::StatusCode;
 
 use rustc_serialize::json;
 use rustc_serialize::json::DecoderError;
+
+#[derive(Debug)]
+pub enum VaultError{
+    IoError(io::Error),
+    HyperError(hyper::error::Error),
+}
+
+impl VaultError{
+    fn new(err: String) -> VaultError {
+        VaultError::IoError(
+            io::Error::new(ErrorKind::Other, err)
+        )
+    }
+
+    pub fn to_string(&self) -> String{
+        match *self {
+            VaultError::IoError(ref err) => err.description().to_string(),
+            VaultError::HyperError(ref err) => err.description().to_string(),
+        }
+    }
+}
+
+impl From<io::Error> for VaultError {
+    fn from(err: io::Error) -> VaultError {
+        VaultError::IoError(err)
+    }
+}
+
+impl From<hyper::error::Error> for VaultError {
+    fn from(err: hyper::error::Error) -> VaultError {
+        VaultError::HyperError(err)
+    }
+}
 
 pub struct VaultClient<'a> {
     pub hosts: Vec<&'a str>,
@@ -48,7 +85,7 @@ struct VaultSecret {
 header! { (XVaultToken, "X-Vault-Token") => [String] }
 
 impl<'a> VaultClient<'a> {
-    pub fn new(hosts: Vec<&'a str>, token: &'a str) -> Result<VaultClient<'a>, String> {
+    pub fn new(hosts: Vec<&'a str>, token: &'a str) -> Result<VaultClient<'a>, VaultError> {
         let id = if hosts.len() == 1 {
             0
         } else {
@@ -66,14 +103,14 @@ impl<'a> VaultClient<'a> {
             .send() {
                 Ok(s) => {
                     match s.status {
-                        StatusCode::Forbidden => return Err("Forbidden".to_string()),
+                        StatusCode::Forbidden => return Err(VaultError::new("Forbidden".to_string())),
                         _ => {}
                     }
 
                 },
                 Err(e) => {
                     println!("{:?}", e);
-                    return Err(format!("{:?}", e))
+                    return Err(VaultError::new(format!("{:?}", e)))
                 }
             }
         Ok(VaultClient {
@@ -100,17 +137,17 @@ impl<'a> VaultClient<'a> {
     /// # }
     /// ```
 
-    pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, &str> {
+    pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, VaultError> {
         match self.post(&format!("/v1/secret/{}", key)[..], &format!("{{\"value\": \"{}\"}}", value)[..]) {
             Ok(s) => {
                 match s.status {
                     StatusCode::NoContent => Ok(""),
-                    _ => { Err("Error setting secret")}
+                    _ => { Err(VaultError::new("Error setting secret".to_string()))}
                 }
             },
             Err(e) => {
                 println!("{:?}", e);
-                Err("err")
+                Err(VaultError::new("err".to_string()))
             }
         }
     }
@@ -133,7 +170,7 @@ impl<'a> VaultClient<'a> {
     /// # }
     /// ```
 
-    pub fn get_secret(&self, key: &str) -> Result<String, &str> {
+    pub fn get_secret(&self, key: &str) -> Result<String, VaultError> {
         match self.get(&format!("/v1/secret/{}", key)[..]) {
             Ok(mut s) => {
                 let mut body = String::new();
@@ -146,13 +183,13 @@ impl<'a> VaultClient<'a> {
                     },
                     Err(e) => {
                         println!("Error: {:?}", e);
-                        Err("Got a bad secret back")
+                        Err(VaultError::new("Got a bad secret back".to_string()))
                     }
                 }
             },
             Err(e) => {
                 println!("Error: {:?}", e);
-                Err("err")
+                Err(VaultError::new("err".to_string()))
             }
         }
     }
@@ -173,45 +210,47 @@ impl<'a> VaultClient<'a> {
     /// assert!(res.is_ok());
     /// # }
     /// ```
-    pub fn delete_secret(&self, key: &str) -> Result<&str, &str> {
+    pub fn delete_secret(&self, key: &str) -> Result<&str, VaultError> {
         match self.delete(&format!("/v1/secret/{}", key)[..]) {
             Ok(s) => {
                 match s.status {
                     StatusCode::NoContent => Ok(""),
-                    _ => { Err("Error setting secret")}
+                    _ => { Err(VaultError::new("Error setting secret".to_string()))}
                 }
             },
             Err(e) => {
                 println!("{:?}", e);
-                Err("err")
+                Err(VaultError::new("err".to_string()))
             }
         }
     }
 
-    fn get(&self, endpoint: &str) -> Result<Response, Error> {
-        self.client.get(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
+    fn get(&self, endpoint: &str) -> Result<Response, VaultError> {
+        let response = try!(self.client.get(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
-            .send()
+            .send());
+        Ok(response)
     }
 
-    fn delete(&self, endpoint: &str) -> Result<Response, Error> {
-        self.client.delete(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
+    fn delete(&self, endpoint: &str) -> Result<Response, VaultError> {
+        let response = try!(self.client.delete(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
-            .send()
+            .send());
+        Ok(response)
     }
 
-    fn post(&self, endpoint: &str, body: &str) -> Result<Response, Error> {
-        self.client.post(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
+    fn post(&self, endpoint: &str, body: &str) -> Result<Response, VaultError> {
+        let response = try!(self.client.post(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .body(body)
-            .send()
+            .send());
+        Ok(response)
     }
     // fn get_new_host(&self) -> usize {
     //     let mut rng = thread_rng();
     //     rng.gen_range(0, hosts.len() as u32 - 1)
     // }
 }
-
