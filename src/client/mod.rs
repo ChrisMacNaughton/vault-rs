@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::io::Read;
-
-use rand::{OsRng, Rng};
+// use std::io;
 
 use hyper::Client;
 use hyper::client::response::Response;
@@ -16,8 +15,6 @@ use rustc_serialize::json::DecoderError;
 pub struct VaultClient<'a> {
     pub hosts: Vec<&'a str>,
     pub token: &'a str,
-    failed_hosts: Vec<&'a str>,
-    current_host: usize,
     client: Client,
 }
 
@@ -38,7 +35,7 @@ struct SecretAuth {
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct VaultSecret {
     lease_id: Option<String>,
-    renewable: bool,
+    renewable: Option<bool>,
     lease_duration: i64,
     data: SecretData,
     warnings: Option<Vec<String>>,
@@ -49,38 +46,32 @@ header! { (XVaultToken, "X-Vault-Token") => [String] }
 
 impl<'a> VaultClient<'a> {
     pub fn new(hosts: Vec<&'a str>, token: &'a str) -> Result<VaultClient<'a>, String> {
-        let id = if hosts.len() == 1 {
-            0
-        } else {
-            let mut rng = match OsRng::new() {
-                Ok(g) => g,
-                Err(e) => panic!("Failed to obtain OS RNG: {}", e)
-            };
-            let id: usize = rng.gen_range(0, hosts.len() - 1);
-            id
-        };
-        // let id: f64 = task_rng().gen_range(0, hosts.len() - 1);
+
         let client = Client::new();
-        match client.get(&format!("{}/v1/auth/token/lookup-self", hosts[id])[..])
-            .header(XVaultToken(token.to_string()))
-            .send() {
-                Ok(s) => {
-                    match s.status {
-                        StatusCode::Forbidden => return Err("Forbidden".to_string()),
-                        _ => {}
+        for host in &hosts {
+            match client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
+                .header(XVaultToken(token.to_string()))
+                .send() {
+                    Ok(s) => {
+                        match s.status {
+                            StatusCode::Forbidden => return Err("Forbidden".to_string()),
+                            _ => { break }
+                        }
+
+                    },
+                    // Err(Error { kind: ConnectionRefused }) => continue,
+                    Err(e) => {
+                        match e {
+                            Error::Io(_) => continue,
+                            _ => return Err(format!("{:?}", e)),
+                        }
                     }
 
-                },
-                Err(e) => {
-                    println!("{:?}", e);
-                    return Err(format!("{:?}", e))
                 }
             }
         Ok(VaultClient {
             hosts: hosts,
             token: token,
-            failed_hosts: vec![],
-            current_host: id,
             client: client,
         })
     }
@@ -188,26 +179,62 @@ impl<'a> VaultClient<'a> {
         }
     }
 
-    fn get(&self, endpoint: &str) -> Result<Response, Error> {
-        self.client.get(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
-            .header(XVaultToken(self.token.to_string()))
-            .header(header::ContentType::json())
-            .send()
+    fn get(&self, endpoint: &str) -> Result<Response, String> {
+        for host in &self.hosts {
+            match self.client.get(&format!("{}{}", host, endpoint)[..])
+                .header(XVaultToken(self.token.to_string()))
+                .header(header::ContentType::json())
+                .send() {
+                    Ok(s) => return Ok(s),
+                    // Err(Error { kind: ConnectionRefused }) => continue,
+                    Err(e) => {
+                        match e {
+                            Error::Io(_) => continue,
+                            _ => return Err(format!("{:?}", e)),
+                        }
+                    }
+                }
+        }
+        Err("No working host".to_string())
     }
 
-    fn delete(&self, endpoint: &str) -> Result<Response, Error> {
-        self.client.delete(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
-            .header(XVaultToken(self.token.to_string()))
-            .header(header::ContentType::json())
-            .send()
+    fn delete(&self, endpoint: &str) -> Result<Response, String> {
+        for host in &self.hosts {
+            match self.client.delete(&format!("{}{}", host, endpoint)[..])
+                .header(XVaultToken(self.token.to_string()))
+                .header(header::ContentType::json())
+                .send() {
+                    Ok(s) => return Ok(s),
+                    // Err(Error { kind: ConnectionRefused }) => continue,
+                    Err(e) => {
+                        match e {
+                            Error::Io(_) => continue,
+                            _ => return Err(format!("{:?}", e)),
+                        }
+                    }
+                }
+        }
+        Err("No working host".to_string())
     }
 
-    fn post(&self, endpoint: &str, body: &str) -> Result<Response, Error> {
-        self.client.post(&format!("{}{}", self.hosts[self.current_host], endpoint)[..])
-            .header(XVaultToken(self.token.to_string()))
-            .header(header::ContentType::json())
-            .body(body)
-            .send()
+    fn post(&self, endpoint: &str, body: &str) -> Result<Response, String> {
+        for host in &self.hosts {
+            match self.client.post(&format!("{}{}", host, endpoint)[..])
+                .header(XVaultToken(self.token.to_string()))
+                .header(header::ContentType::json())
+                .body(body)
+                .send() {
+                    Ok(s) => return Ok(s),
+                    // Err(Error { kind: ConnectionRefused }) => continue,
+                    Err(e) => {
+                        match e {
+                            Error::Io(_) => continue,
+                            _ => return Err(format!("{:?}", e)),
+                        }
+                    }
+                }
+        }
+        Err("No working host".to_string())
     }
     // fn get_new_host(&self) -> usize {
     //     let mut rng = thread_rng();
