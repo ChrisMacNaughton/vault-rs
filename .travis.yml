@@ -1,45 +1,48 @@
 addons:
   apt:
     packages:
-      - libcurl4-openssl-dev
-      - unzip
+    - libcurl4-openssl-dev
+    - unzip
 language: rust
 rust:
-  - nightly
-  - beta
-  - stable
+- nightly
+- beta
+- stable
 matrix:
   allow_failures:
-    - rust: nightly
-    - rust: beta
-    - env: VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - rust: nightly
+  - rust: beta
+  - env: VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
 env:
-    - VAULT_VERSION=0.4.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
-    - VAULT_VERSION=0.5.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
-    - VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  matrix:
+  - VAULT_VERSION=0.4.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_VERSION=0.5.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_BRANCH=head TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  global:
+    secure: SQxIo2LX+e5nTKKZ2I0Ix2BIfo5Q3xPaLv9mrvKf/aPvaqh/Z4LPS6l3MgOiqKx0zJBH/QHfqO8IUoQrDpq4Fu609Yo9nU6FCPsbjYOhOgQ2+XNzmLX389q2SNBZirae8U5pm4VVXAO4abnUv7mDImje8AubYVRGDXv0XsSlJtPlyPVdqxz0a52k4qg4Jzf8K+x1RZy/O8bwSCCgwgjqm2zLOn/3MFSAH3jxHaAg5i8fxmjCOd8sAIEZvHL0U7H9X0wprirLZxGegFyp5+wU+IiPmJNG88kJJ3ylGCz2ynzkreijYUvbpmfOlmMOQU5rq0SbDUOTFA2Muqnt53d6SCWjFWbrQksDS8MNpu2rVNCm+pmVdGIRYBdpY5QqYyA7Cbu65GqJkorwCOT6U6XK4UO+5V5ICXaXTvz4buzGVzK8UBYwl5jrFrNKud+FyckaDeU7wNIYH7meQ/Qf6zJtwHl9AH+yTW9bCk42lo+JCjowElGCfKULC1n09tvhoBNlTvd+8yICz3nAXvMD5peDJ4H8dMPgDtyKOl1+lTBccUTD5EtkaLgoahPEH7R1hC+PzbUy1+YeG3G+qoG90T+sso/DjSD6sKtDten8AqYeB0g9gWbenzsnMsfoz/GqpV0haxrGFw5/QbCnaOSGFKDzy5iks72oJ8HdOiX5sNKX6S8=
 cache:
   apt: true
   rust-download: true
   cargo: true
   pip: true
   directories:
-    - ~/.cargo
-    - $TRAVIS_BUILD_DIR/target
+  - "~/.cargo"
+  - "$TRAVIS_BUILD_DIR/target"
 notifications:
   email:
     on_success: never
 before_script:
-    - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+- pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+- VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
 install:
-  - bin/install-vault-${VAULT_BRANCH}.sh
-  - export PATH=$HOME/bin:$PATH
-  - vault server -dev > /dev/null 2>&1 &
+- bin/install-vault-${VAULT_BRANCH}.sh
+- export PATH=$HOME/bin:$PATH
+- vault server -dev > /dev/null 2>&1 &
 script:
-  - travis-cargo build
-  - travis-cargo test
+- travis-cargo build
+- travis-cargo test
 after_success:
-  - travis-cargo coveralls --no-sudo
-  - cargo doc --no-deps
-  - travis-cargo --only stable doc-upload
+- travis-cargo coveralls --no-sudo
+- cargo doc --no-deps
+- travis-cargo --only stable doc-upload
 sudo: false
