@@ -12,6 +12,10 @@ vault server -dev
 vault token-create -id="test12345"
 ```
 
+## High Availability
+
+To use this with a highly available vault, you need to either let consul handle DNS for this crate or handle identifying the Vault leader separately.
+
 ## TODO
 
 - Add support for managing Vault
