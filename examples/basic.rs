@@ -1,9 +1,9 @@
 extern crate hashicorp_vault as vault;
 
 fn main() {
-    let hosts = vec!["http://localhost:8200"];
+    let host = "http://localhost:8200";
     let token = "test12345";
-    let client = vault::Client::new(hosts, token).unwrap();
+    let client = vault::Client::new(host, token).unwrap();
 
     let _ = client.set_secret("foo", "bar");
 

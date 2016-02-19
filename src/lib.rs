@@ -12,16 +12,16 @@ mod tests {
 
     #[test]
     fn it_can_create_a_client() {
-        let hosts = vec!["http://127.0.0.1:8201", "http://127.0.0.1:8200"];
+        let host = "http://127.0.0.1:8200";
         let token = "test12345";
-        let _ = Client::new(hosts, token).unwrap();
+        let _ = Client::new(host, token).unwrap();
     }
 
     #[test]
     fn it_can_query_secrets() {
-        let hosts = vec!["http://127.0.0.1:8201", "http://127.0.0.1:8200"];
+        let host = "http://127.0.0.1:8200";
         let token = "test12345";
-        let client = Client::new(hosts, token).unwrap();
+        let client = Client::new(host, token).unwrap();
 
         let res = client.set_secret("hello", "world");
         assert!(res.is_ok());
@@ -31,18 +31,18 @@ mod tests {
 
     #[test]
     fn it_returns_err_on_forbidden() {
-        let hosts = vec!["http://127.0.0.1:8201", "http://127.0.0.1:8200"];
+        let host = "http://127.0.0.1:8200";
         let token = "test123456";
-        let client = Client::new(hosts, token);
+        let client = Client::new(host, token);
         // assert_eq!(Err("Forbidden".to_string()), client);
         assert!(client.is_err());
     }
 
     #[test]
     fn it_can_delete_a_secret() {
-        let hosts = vec!["http://127.0.0.1:8201", "http://127.0.0.1:8200"];
+        let host = "http://127.0.0.1:8200";
         let token = "test12345";
-        let client = Client::new(hosts, token).unwrap();
+        let client = Client::new(host, token).unwrap();
 
         let res = client.set_secret("hello", "world");
         assert!(res.is_ok());
