@@ -23,9 +23,9 @@ mod tests {
         let token = "test12345";
         let client = Client::new(host, token).unwrap();
 
-        let res = client.set_secret("hello", "world");
+        let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
-        let res = client.get_secret("hello").unwrap();
+        let res = client.get_secret("hello_query").unwrap();
         assert_eq!(res, "world");
     }
 
@@ -44,13 +44,13 @@ mod tests {
         let token = "test12345";
         let client = Client::new(host, token).unwrap();
 
-        let res = client.set_secret("hello", "world");
+        let res = client.set_secret("hello_delete", "world");
         assert!(res.is_ok());
-        let res = client.get_secret("hello").unwrap();
+        let res = client.get_secret("hello_delete").unwrap();
         assert_eq!(res, "world");
-        let res = client.delete_secret("hello");
+        let res = client.delete_secret("hello_delete");
         assert!(res.is_ok());
-        let res = client.get_secret("hello");
+        let res = client.get_secret("hello_delete");
         assert!(res.is_err());
     }
 }

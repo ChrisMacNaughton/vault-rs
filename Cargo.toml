@@ -1,6 +1,6 @@
 [package]
 name = "hashicorp_vault"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Chris MacNaughton <chmacnaughton@gmail.com>"]
 description = "HashiCorp Vault API client for Rust"
 repository = "https://github.com/chrismacnaughton/vault-rs"
