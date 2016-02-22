@@ -28,7 +28,7 @@ struct SecretAuth {
     client_token: String,
     policies: Vec<String>,
     metadata: HashMap<String, String>,
-    lease_duration: i64,
+    lease_duration: Option<i64>,
     renewable: bool,
 }
 
@@ -36,7 +36,7 @@ struct SecretAuth {
 struct VaultSecret {
     lease_id: Option<String>,
     renewable: Option<bool>,
-    lease_duration: i64,
+    lease_duration: Option<i64>,
     data: SecretData,
     warnings: Option<Vec<String>>,
     auth: Option<SecretAuth>,
