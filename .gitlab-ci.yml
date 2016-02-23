@@ -114,8 +114,11 @@ publish:
   only:
     - tags
   script:
+    - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
+    - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - cargo build --release --verbose
+    - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
     - cargo package --verbose
     - cargo doc --verbose
