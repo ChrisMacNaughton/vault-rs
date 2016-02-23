@@ -10,53 +10,101 @@ cache:
     - $CI_PROJECT_DIR/target
 
 stages:
-  - install-rust
-  - install-vault
-  - build
   - test
   - publish
 
-stable:
-  stage: install-rust
+test-stable-0.4.1:
   script:
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
-
-beta:
-  stage: install-rust
-  script:
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
-
-nightly:
-  stage: install-rust
-  script:
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
-
-vault-0.4.1:
-  stage: install-vault
-  script:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
-
-vault-0.5.0:
-  stage: install-vault
-  script:
-    - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
-
-vault-head:
-  stage: install-vault
-  script:
-    - bin/install-vault-head.sh
-
-build:
-  stage: build
-  script:
     - cargo build --release --verbose
-
-test:
-  stage: test
-  script:
-    - vault server -dev > /dev/null 2>&1 &
+    - vault server -dev > /dev/null 2>&1
     - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
     - cargo test --verbose
+
+test-stable-0.5.0:
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
+    - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+test-stable-head:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
+    - bin/install-vault-head.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+
+
+test-beta-0.4.1:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
+    - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+test-beta-0.5.0:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
+    - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+test-beta-head:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
+    - bin/install-vault-head.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+
+
+test-nightly-0.4.1:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
+    - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+test-nightly-0.5.0:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
+    - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
+test-nightly-head:
+  allow_failure: true
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
+    - bin/install-vault-head.sh
+    - cargo build --release --verbose
+    - vault server -dev > /dev/null 2>&1
+    - VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+    - cargo test --verbose
+
 
 publish:
   stage: publish
