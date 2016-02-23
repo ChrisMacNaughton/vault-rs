@@ -5,6 +5,7 @@ before_script:
   - apt-get install -y curl file build-essential unzip libssl-dev
 
 cache:
+  untracked: true
   paths:
     - $HOME/.cargo
     - $CI_PROJECT_DIR/target
@@ -12,6 +13,9 @@ cache:
 stages:
   - test
   - publish
+
+variables:
+  PATH: $HOME/bin:$PATH
 
 test-stable-0.4.1:
   script:
