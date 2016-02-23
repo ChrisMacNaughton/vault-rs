@@ -19,7 +19,7 @@ test-stable-0.4.1:
   script:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sud
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -28,7 +28,7 @@ test-stable-0.5.0:
   script:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sud
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -38,7 +38,7 @@ test-stable-head:
   script:
     - bin/install-vault-head.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sud
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -50,7 +50,7 @@ test-beta-0.4.1:
   script:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=bet
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -60,7 +60,7 @@ test-beta-0.5.0:
   script:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=bet
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -70,7 +70,7 @@ test-beta-head:
   script:
     - bin/install-vault-head.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=bet
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -82,7 +82,7 @@ test-nightly-0.4.1:
   script:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightl
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -92,7 +92,7 @@ test-nightly-0.5.0:
   script:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightl
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -102,7 +102,7 @@ test-nightly-head:
   script:
     - bin/install-vault-head.sh
     - $HOME/bin/vault server -dev &
-    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightl
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
     - cargo build --release --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
@@ -113,8 +113,6 @@ publish:
   only:
     - tags
   script:
-    - apt-get update
-    - apt-get install -y curl file build-essential
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - mv Cargo.toml.new Cargo.toml
     - cargo build --release --verbose
