@@ -83,7 +83,7 @@ impl<'a> VaultClient<'a> {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello", "world");
+    /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
     /// # }
     /// ```
@@ -113,9 +113,9 @@ impl<'a> VaultClient<'a> {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello", "world");
+    /// let res = client.set_secret("hello_get", "world");
     /// assert!(res.is_ok());
-    /// let res = client.get_secret("hello");
+    /// let res = client.get_secret("hello_get");
     /// assert!(res.is_ok());
     /// assert_eq!(res.unwrap(), "world");
     /// # }
@@ -155,9 +155,9 @@ impl<'a> VaultClient<'a> {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello", "world");
+    /// let res = client.set_secret("hello_delete", "world");
     /// assert!(res.is_ok());
-    /// let res = client.delete_secret("hello");
+    /// let res = client.delete_secret("hello_delete");
     /// assert!(res.is_ok());
     /// # }
     /// ```
