@@ -21,7 +21,7 @@ test-stable-0.4.1:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
-    - cargo build --release --verbose
+    - cargo build --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
 
@@ -30,7 +30,7 @@ test-stable-0.5.0:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
-    - cargo build --release --verbose
+    - cargo build --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
 
@@ -40,7 +40,7 @@ test-stable-0.5.0:
 #     - bin/install-vault-head.sh
 #     - $HOME/bin/vault server -dev &
 #     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
-#     - cargo build --release --verbose
+#     - cargo build --verbose
 #     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
 #     - cargo test --verbose
 
@@ -52,7 +52,7 @@ test-stable-0.5.0:
 #     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
 #     - $HOME/bin/vault server -dev &
 #     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
-#     - cargo build --release --verbose
+#     - cargo build --verbose
 #     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
 #     - cargo test --verbose
 
@@ -62,7 +62,7 @@ test-beta-0.5.0:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
-    - cargo build --release --verbose
+    - cargo build --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
 
@@ -72,7 +72,7 @@ test-beta-0.5.0:
 #     - bin/install-vault-head.sh
 #     - $HOME/bin/vault server -dev &
 #     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=beta
-#     - cargo build --release --verbose
+#     - cargo build --verbose
 #     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
 #     - cargo test --verbose
 
@@ -84,7 +84,7 @@ test-beta-0.5.0:
 #     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
 #     - $HOME/bin/vault server -dev &
 #     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
-#     - cargo build --release --verbose
+#     - cargo build --verbose
 #     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
 #     - cargo test --verbose
 
@@ -94,7 +94,7 @@ test-nightly-0.5.0:
     - VAULT_VERSION=0.5.0 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
-    - cargo build --release --verbose
+    - cargo build --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
 
@@ -104,7 +104,7 @@ test-nightly-0.5.0:
 #     - bin/install-vault-head.sh
 #     - $HOME/bin/vault server -dev &
 #     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo --channel=nightly
-#     - cargo build --release --verbose
+#     - cargo build --verbose
 #     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
 #     - cargo test --verbose
 
@@ -117,7 +117,7 @@ publish:
     - VAULT_VERSION=0.4.1 bin/install-vault-release.sh
     - $HOME/bin/vault server -dev &
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
-    - cargo build --release --verbose
+    - cargo build --verbose
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - cargo test --verbose
     - cargo package --verbose
