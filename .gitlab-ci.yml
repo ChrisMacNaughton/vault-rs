@@ -32,7 +32,8 @@ test-stable-0.5.0:
     - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
     - travis-cargo build
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
-    - travis-cargo test && travis-cargo coveralls --no-sudo
+    - travis-cargo test
+    - travis-cargo coveralls --no-sudo; echo ""
 
 test-beta-0.5.0:
   allow_failure: true
