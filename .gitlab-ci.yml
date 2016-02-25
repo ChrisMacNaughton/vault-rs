@@ -1,5 +1,8 @@
 image: iceyec/ci-rust
 
+before_script:
+  - export TRAVIS_JOB_ID=$CI_BUILD_ID
+
 cache:
   untracked: true
   key: $CI_BUILD_STAGE/$CI_BUILD_REF_NAME
