@@ -1,6 +1,6 @@
 # Vault
 
-# [![Build Status](https://git.cmacinfo.com/chris/cault-rs/badges/master/build.svg)](https://git.cmacinfo.com/chris/cault-rs/builds)
+# [![Build Status](https://git.cmacinfo.com/chris/vault-rs/badges/master/build.svg)](https://git.cmacinfo.com/chris/vault-rs/builds)
 
 [HashiCorp](https://hashicorp.com/) [Vault](https://www.vaultproject.io) API client for Rust.
 
