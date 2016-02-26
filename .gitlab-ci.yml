@@ -4,7 +4,6 @@ before_script:
   - export TRAVIS_JOB_ID=$CI_BUILD_ID
 
 cache:
-  untracked: true
   key: $CI_BUILD_STAGE/$CI_BUILD_REF_NAME
   paths:
     - $HOME/.cargo
@@ -33,7 +32,7 @@ test-stable-0.5.0:
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - travis-cargo test
     - travis-cargo coverage --no-sudo || true
-    - cat target/kcov/index.json || true
+    - cat target/kcov*/index.json || true
 
 test-beta-0.5.0:
   allow_failure: true
