@@ -89,7 +89,7 @@ impl<'a> VaultClient<'a> {
     /// ```
 
     pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, &str> {
-        match self.post(&format!("/v1/secret/{}", key)[..], &format!("{{\"value\": \"{}\"}}", value)[..]) {
+        match self.post(&format!("/v1/secret/{}", key)[..], &format!("{{\"value\": \"{}\"}}", value.replace("\n", "\\n"))[..]) {
             Ok(s) => {
                 match s.status {
                     StatusCode::NoContent => Ok(""),

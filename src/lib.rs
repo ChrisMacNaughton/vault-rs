@@ -30,6 +30,17 @@ mod tests {
     }
 
     #[test]
+    fn it_can_write_secrets_with_newline() {
+        let host = "http://127.0.0.1:8200";
+        let token = "test12345";
+        let client = Client::new(host, token).unwrap();
+
+        let res = client.set_secret("hello_set", "world\n");
+        assert!(res.is_ok());
+        let res = client.get_secret("hello_set").unwrap();
+        assert_eq!(res, "world\n");
+    }
+    #[test]
     fn it_returns_err_on_forbidden() {
         let host = "http://127.0.0.1:8200";
         let token = "test123456";
