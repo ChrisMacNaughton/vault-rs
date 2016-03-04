@@ -13,6 +13,7 @@ variables:
 
 stages:
   - test
+  - publish
 
 test-stable-0.4.1:
   script:
@@ -53,3 +54,16 @@ test-nightly-0.5.0:
     - travis-cargo build
     - VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token-create -id="test12345"
     - travis-cargo test
+
+
+publish:
+  stage: publish
+  only:
+    - tags
+  script:
+    - curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- -y --disable-sudo
+    - cargo build --release --verbose
+    - cargo test --verbose
+    - cargo package --verbose
+    - cargo doc --verbose
+    - cargo publish --token "$CRATES_IO_TOKEN"
