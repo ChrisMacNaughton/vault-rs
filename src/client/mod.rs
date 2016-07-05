@@ -56,7 +56,7 @@ struct AppIdPayload {
 header! { (XVaultToken, "X-Vault-Token") => [String] }
 
 impl<'a> VaultClient<'a> {
-    /// Make a new `VaultClient` from an existing vault token
+    /// Construct a `VaultClient` from an existing vault token
     pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a>> {
         let client = Client::new();
         let _ = try!(handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
@@ -69,7 +69,8 @@ impl<'a> VaultClient<'a> {
         })
     }
 
-    /// Retrieve token via the `App ID` auth backend
+    /// Construct a `VaultClient` via the `App ID`
+    /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
     pub fn new_app_id(host: &'a str, app_id: &'a str, user_id: &'a str) -> Result<VaultClient<'a>> {
         let client = Client::new();
         let payload = try!(json::encode(&AppIdPayload {
