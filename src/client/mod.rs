@@ -64,7 +64,26 @@ impl<'a> VaultClient<'a> {
         })
     }
 
+    /// Retrieve token via the `App ID` auth backend
+    pub fn new_app_id(host: &'a str, app_id: &'a str, user_id: &'a str) -> Result<VaultClient<'a>> {
+        let client = Client::new();
+        let payload = try!(json::encode(&AppIdPayload {
+            app_id: app_id.to_string(),
+            user_id: user_id.to_string(),
+        }));
+        let mut res =
+            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/app-id/login", host)[..])
+                                             .body(&payload)
+                                             .send()));
+        let mut body = String::new();
+        let _ = try!(res.read_to_string(&mut body));
+        let decoded: VaultSecret = try!(json::decode(&body));
+        let token = match decoded.auth {
+            Some(auth) => auth.client_token,
+            None => {
+                return Err(Error::Vault(format!("No client token found in response: `{}`", body)))
             }
+        };
         Ok(VaultClient {
             host: host,
             token: token,
