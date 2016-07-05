@@ -10,9 +10,14 @@ use client::error::{Error, Result};
 
 mod error;
 
+/// Vault client used to make API requests to the vault
+#[derive(Debug)]
 pub struct VaultClient<'a> {
+    /// URL to vault instance
     pub host: &'a str,
+    /// Token to access vault
     pub token: String,
+    /// `hyper::Client`
     client: Client,
 }
 
@@ -131,7 +136,7 @@ impl<'a> VaultClient<'a> {
     pub fn get_secret(&self, key: &str) -> Result<String> {
         let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..]));
         let mut body = String::new();
-        res.read_to_string(&mut body).unwrap();
+        let _ = try!(res.read_to_string(&mut body));
         let decoded: VaultSecret = try!(json::decode(&body));
         Ok(decoded.data.value)
     }

@@ -1,3 +1,21 @@
+#![deny(missing_docs,
+        missing_debug_implementations,
+        trivial_casts,
+        trivial_numeric_casts,
+        unsafe_code,
+        unstable_features,
+        unused_import_braces,
+        unused_qualifications,
+        unused_results)]
+#![cfg_attr(all(test), feature(test))]
+#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(feature = "clippy", allow(unstable_features))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", deny(clippy))]
+
+//! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
+
 #[macro_use]
 extern crate hyper;
 #[macro_use]
