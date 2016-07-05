@@ -1,12 +1,13 @@
 [package]
-name = "hashicorp_vault"
-version = "0.3.5"
 authors = ["Chris MacNaughton <chmacnaughton@gmail.com>"]
 description = "HashiCorp Vault API client for Rust"
-repository = "https://github.com/chrismacnaughton/vault-rs"
 license = "MIT"
+name = "hashicorp_vault"
+repository = "https://github.com/chrismacnaughton/vault-rs"
+version = "0.3.5"
 
 [dependencies]
-hyper = "~0.7"
+hyper = "0.9"
 log = "0.3"
+quick-error = "1.1.0"
 rustc-serialize = "0.3"

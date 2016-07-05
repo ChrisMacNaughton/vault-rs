@@ -1,14 +1,18 @@
-#[macro_use] extern crate hyper;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate hyper;
+#[macro_use]
+extern crate log;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate quick_error;
 
 mod client;
 
-pub use client::{VaultClient as Client};
+pub use client::VaultClient as Client;
 
 #[cfg(test)]
 mod tests {
-    use client::{VaultClient as Client};
+    use client::VaultClient as Client;
 
     #[test]
     fn it_can_create_a_client() {
@@ -54,4 +58,3 @@ mod tests {
         assert!(res.is_err());
     }
 }
-
