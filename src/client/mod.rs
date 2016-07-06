@@ -99,9 +99,7 @@ impl<'a, T> VaultClient<'a, T>
         let mut res = try!(handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
                     .header(XVaultToken(token.to_string()))
                     .send()));
-        let mut body = String::new();
-        let _ = try!(res.read_to_string(&mut body));
-        let decoded: VaultResponse<TokenData> = try!(json::decode(&body));
+        let decoded: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
         Ok(VaultClient {
             host: host,
             token: token.to_string(),
@@ -125,13 +123,12 @@ impl<'a, T> VaultClient<'a, T>
             try!(handle_hyper_response(client.post(&format!("{}/v1/auth/app-id/login", host)[..])
                                              .body(&payload)
                                              .send()));
-        let mut body = String::new();
-        let _ = try!(res.read_to_string(&mut body));
-        let decoded: VaultResponse<()> = try!(json::decode(&body));
+        let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
         let token = match decoded.auth {
             Some(ref auth) => auth.client_token.clone(),
             None => {
-                return Err(Error::Vault(format!("No client token found in response: `{}`", body)))
+                return Err(Error::Vault(format!("No client token found in response: `{:?}`",
+                                                &decoded.auth)))
             }
         };
         Ok(VaultClient {
@@ -189,9 +186,7 @@ impl<'a, T> VaultClient<'a, T>
     /// ```
     pub fn get_secret(&self, key: &str) -> Result<String> {
         let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..]));
-        let mut body = String::new();
-        let _ = try!(res.read_to_string(&mut body));
-        let decoded: VaultResponse<SecretData> = try!(json::decode(&body));
+        let decoded: VaultResponse<SecretData> = try!(parse_vault_response(&mut res));
         match decoded.data {
             Some(data) => Ok(data.value),
             _ => Err(Error::Vault(format!("No secret found in response: `{:#?}`", decoded))),
