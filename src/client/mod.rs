@@ -245,11 +245,18 @@ impl<'a, T> VaultClient<'a, T>
 
 /// helper fn to check `Response` for success
 fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> Result<Response> {
-    let res = try!(res);
+    let mut res = try!(res);
     if res.status.is_success() {
         Ok(res)
     } else {
-        Err(Error::Vault(format!("Vault request failed: {:?}", res)))
+        let mut error_msg = String::new();
+        let _ = res.read_to_string(&mut error_msg).unwrap_or({
+            error_msg.push_str("Could not read vault response.");
+            0
+        });
+        Err(Error::Vault(format!("Vault request failed: {:?}, error message: `{}`",
+                                 res,
+                                 error_msg)))
     }
 }
 
