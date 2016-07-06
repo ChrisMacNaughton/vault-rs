@@ -4,7 +4,7 @@ use std::io::Read;
 use hyper::{self, header, Client};
 use hyper::client::response::Response;
 
-use rustc_serialize::json;
+use rustc_serialize::{self, json};
 
 use client::error::{Error, Result};
 
@@ -12,13 +12,36 @@ mod error;
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
-pub struct VaultClient<'a> {
+pub struct VaultClient<'a, T>
+    where T: rustc_serialize::Decodable
+{
     /// URL to vault instance
     pub host: &'a str,
     /// Token to access vault
     pub token: String,
     /// `hyper::Client`
     client: Client,
+    /// Data
+    pub data: VaultResponse<T>,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct TokenData {
+    pub accessor: String,
+    pub creation_time: u64,
+    pub creation_ttl: u64,
+    pub display_name: String,
+    pub explicit_max_ttl: u64,
+    pub id: String,
+    pub last_renewal_time: u64,
+    pub meta: HashMap<String, String>,
+    pub num_uses: u64,
+    pub orphan: bool,
+    pub path: String,
+    pub policies: Vec<String>,
+    pub renewable: bool,
+    pub role: String,
+    pub ttl: u64,
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
@@ -27,25 +50,37 @@ struct SecretData {
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
-struct SecretAuth {
-    client_token: String,
-    accessor: String,
-    policies: Vec<String>,
-    metadata: HashMap<String, String>,
-    lease_duration: Option<i64>,
-    renewable: bool,
+pub struct SecretAuth {
+    pub client_token: String,
+    pub accessor: String,
+    pub policies: Vec<String>,
+    pub metadata: HashMap<String, String>,
+    pub lease_duration: Option<u64>,
+    pub renewable: bool,
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
-struct VaultSecret {
-    lease_id: Option<String>,
-    renewable: Option<bool>,
-    lease_duration: Option<i64>,
-    data: SecretData,
-    warnings: Option<Vec<String>>,
-    auth: Option<SecretAuth>,
+pub struct VaultResponse<D>
+    where D: rustc_serialize::Decodable
+{
+    pub lease_id: Option<String>,
+    pub renewable: Option<bool>,
+    pub lease_duration: Option<u64>,
+    pub data: Option<D>,
+    pub warnings: Option<Vec<String>>,
+    pub auth: Option<SecretAuth>,
+    pub wrap_info: Option<WrapInfo>,
 }
 
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct WrapInfo {
+    // TODO: change to a `Duration`
+    pub ttl: u64,
+    pub token: String,
+    // TODO: change to `time`
+    pub creation_time: u64,
+    pub wrapped_accessor: String,
+}
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
@@ -55,23 +90,32 @@ struct AppIdPayload {
 
 header! { (XVaultToken, "X-Vault-Token") => [String] }
 
-impl<'a> VaultClient<'a> {
+impl<'a, T> VaultClient<'a, T>
+    where T: rustc_serialize::Decodable
+{
     /// Construct a `VaultClient` from an existing vault token
-    pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a>> {
+    pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a, TokenData>> {
         let client = Client::new();
-        let _ = try!(handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
+        let mut res = try!(handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
                     .header(XVaultToken(token.to_string()))
                     .send()));
+        let mut body = String::new();
+        let _ = try!(res.read_to_string(&mut body));
+        let decoded: VaultResponse<TokenData> = try!(json::decode(&body));
         Ok(VaultClient {
             host: host,
             token: token.to_string(),
             client: client,
+            data: decoded,
         })
     }
 
     /// Construct a `VaultClient` via the `App ID`
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
-    pub fn new_app_id(host: &'a str, app_id: &'a str, user_id: &'a str) -> Result<VaultClient<'a>> {
+    pub fn new_app_id(host: &'a str,
+                      app_id: &'a str,
+                      user_id: &'a str)
+                      -> Result<VaultClient<'a, ()>> {
         let client = Client::new();
         let payload = try!(json::encode(&AppIdPayload {
             app_id: app_id.to_string(),
@@ -83,9 +127,9 @@ impl<'a> VaultClient<'a> {
                                              .send()));
         let mut body = String::new();
         let _ = try!(res.read_to_string(&mut body));
-        let decoded: VaultSecret = try!(json::decode(&body));
+        let decoded: VaultResponse<()> = try!(json::decode(&body));
         let token = match decoded.auth {
-            Some(auth) => auth.client_token,
+            Some(ref auth) => auth.client_token.clone(),
             None => {
                 return Err(Error::Vault(format!("No client token found in response: `{}`", body)))
             }
@@ -94,6 +138,7 @@ impl<'a> VaultClient<'a> {
             host: host,
             token: token,
             client: client,
+            data: decoded,
         })
     }
 
@@ -138,8 +183,11 @@ impl<'a> VaultClient<'a> {
         let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..]));
         let mut body = String::new();
         let _ = try!(res.read_to_string(&mut body));
-        let decoded: VaultSecret = try!(json::decode(&body));
-        Ok(decoded.data.value)
+        let decoded: VaultResponse<SecretData> = try!(json::decode(&body));
+        match decoded.data {
+            Some(data) => Ok(data.value),
+            _ => Err(Error::Vault(format!("No secret found in response: `{:#?}`", decoded))),
+        }
     }
 
     ///
