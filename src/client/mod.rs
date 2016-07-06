@@ -142,6 +142,14 @@ impl<'a, T> VaultClient<'a, T>
         })
     }
 
+    /// Renew lease for token and updates the stored auth information based upon response
+    pub fn renew(&mut self) -> Result<()> {
+        let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));
+        let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
+        self.data.auth = vault_res.auth;
+        Ok(())
+    }
+
     ///
     /// Saves a secret
     ///
@@ -158,7 +166,7 @@ impl<'a, T> VaultClient<'a, T>
     /// ```
     pub fn set_secret(&self, key: &str, value: &str) -> Result<()> {
         let _ = try!(self.post(&format!("/v1/secret/{}", key)[..],
-                               &format!("{{\"value\": \"{}\"}}", value)[..]));
+                               Some(&format!("{{\"value\": \"{}\"}}", value)[..])));
         Ok(())
     }
 
@@ -227,13 +235,16 @@ impl<'a, T> VaultClient<'a, T>
                                           .send())))
     }
 
-    fn post(&self, endpoint: &str, body: &str) -> Result<Response> {
-        Ok(try!(handle_hyper_response(self.client
-                                          .post(&format!("{}{}", self.host, endpoint)[..])
-                                          .header(XVaultToken(self.token.to_string()))
-                                          .header(header::ContentType::json())
-                                          .body(body)
-                                          .send())))
+    fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+        let mut req = self.client
+                          .post(&format!("{}{}", self.host, endpoint)[..])
+                          .header(XVaultToken(self.token.to_string()))
+                          .header(header::ContentType::json());
+        if body.is_some() {
+            req = req.body(body.unwrap());
+        }
+
+        Ok(try!(handle_hyper_response(req.send())))
     }
 }
 
@@ -245,4 +256,13 @@ fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> 
     } else {
         Err(Error::Vault(format!("Vault request failed: {:?}", res)))
     }
+}
+
+fn parse_vault_response<T>(res: &mut Response) -> Result<VaultResponse<T>>
+    where T: rustc_serialize::Decodable
+{
+    let mut body = String::new();
+    let _ = try!(res.read_to_string(&mut body));
+    let vault_res: VaultResponse<T> = try!(json::decode(&body));
+    Ok(vault_res)
 }
