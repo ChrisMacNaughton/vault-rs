@@ -8,7 +8,8 @@ use rustc_serialize::{self, json};
 
 use client::error::{Error, Result};
 
-mod error;
+/// Errors
+pub mod error;
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]

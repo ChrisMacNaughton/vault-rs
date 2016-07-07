@@ -27,6 +27,7 @@ extern crate quick_error;
 pub mod client;
 
 pub use client::VaultClient as Client;
+pub use client::error::Error;
 
 #[cfg(test)]
 mod tests {
