@@ -153,7 +153,7 @@ impl<'a, T> VaultClient<'a, T>
         })
     }
 
-    /// Renew lease for `VaultClient`'s token and updates the stored auth information based upon response
+    /// Renew lease for `VaultClient`'s token and updates the `self.data.auth` based upon response
     pub fn renew(&mut self) -> Result<()> {
         let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
