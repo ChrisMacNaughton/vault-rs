@@ -83,6 +83,12 @@ pub struct WrapInfo {
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct WrapData {
+    /// Serialized json string of type `VaultResponse<HashMap<String, String>>`
+    response: String,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
     app_id: String,
     user_id: String,
@@ -95,6 +101,7 @@ pub struct PostgresqlData {
 }
 
 header! { (XVaultToken, "X-Vault-Token") => [String] }
+header! { (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String] }
 
 impl<'a, T> VaultClient<'a, T>
     where T: rustc_serialize::Decodable
@@ -204,12 +211,28 @@ impl<'a, T> VaultClient<'a, T>
     /// # }
     /// ```
     pub fn get_secret(&self, key: &str) -> Result<String> {
-        let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..]));
+        let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], None));
         let decoded: VaultResponse<SecretData> = try!(parse_vault_response(&mut res));
         match decoded.data {
             Some(data) => Ok(data.value),
             _ => Err(Error::Vault(format!("No secret found in response: `{:#?}`", decoded))),
         }
+    }
+
+    /// Fetch a wrapped secret. Token (one-time use) to fetch secret will be in `wrap_info.token`
+    /// https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
+    pub fn get_secret_wrapped(&self, key: &str, wrap_ttl: &str) -> Result<VaultResponse<()>> {
+        let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], Some(wrap_ttl)));
+        Ok(try!(parse_vault_response(&mut res)))
+    }
+
+    /// Fetch wrapped response from `cubbyhole/response`
+    ///
+    /// The original response (in the `response` key) is what is returned
+    pub fn get_cubbyhole_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
+        let mut res = try!(self.get("/v1/cubbyhole/response", None));
+        let decoded: VaultResponse<WrapData> = try!(parse_vault_response(&mut res));
+        Ok(try!(json::decode(&decoded.data.unwrap().response[..])))
     }
 
     ///
@@ -236,17 +259,21 @@ impl<'a, T> VaultClient<'a, T>
     /// Get postgresql secret backend
     /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
     pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlData>> {
-        let mut res = try!(self.get(&format!("/v1/postgresql/creds/{}", name)[..]));
+        let mut res = try!(self.get(&format!("/v1/postgresql/creds/{}", name)[..], None));
         let decoded: VaultResponse<PostgresqlData> = try!(parse_vault_response(&mut res));
         Ok(decoded)
     }
 
-    fn get(&self, endpoint: &str) -> Result<Response> {
-        Ok(try!(handle_hyper_response(self.client
-                                          .get(&format!("{}{}", self.host, endpoint)[..])
-                                          .header(XVaultToken(self.token.to_string()))
-                                          .header(header::ContentType::json())
-                                          .send())))
+    fn get(&self, endpoint: &str, wrap_ttl: Option<&str>) -> Result<Response> {
+        let mut req = self.client
+                          .get(&format!("{}{}", self.host, endpoint)[..])
+                          .header(XVaultToken(self.token.to_string()))
+                          .header(header::ContentType::json());
+        if wrap_ttl.is_some() {
+            req = req.header(XVaultWrapTTL(wrap_ttl.unwrap().to_string()));
+        }
+
+        Ok(try!(handle_hyper_response(req.send())))
     }
 
     fn delete(&self, endpoint: &str) -> Result<Response> {
