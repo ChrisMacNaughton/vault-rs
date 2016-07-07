@@ -78,7 +78,8 @@ pub struct WrapInfo {
     pub ttl: u64,
     pub token: String,
     // TODO: change to `time`
-    pub creation_time: u64,
+    // example: "2016-07-07T15:30:44.57928452Z"
+    pub creation_time: String,
     pub wrapped_accessor: String,
 }
 
