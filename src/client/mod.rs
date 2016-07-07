@@ -25,88 +25,141 @@ pub struct VaultClient<'a, T>
     pub data: VaultResponse<T>,
 }
 
+/// Token data, used in `VaultResponse`
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct TokenData {
+    /// Accessor token
     pub accessor: String,
+    /// Creation time
     pub creation_time: u64,
+    /// Creation time-to-live
     pub creation_ttl: u64,
+    /// Display name
     pub display_name: String,
+    /// Max time-to-live
     pub explicit_max_ttl: u64,
+    /// Token id
     pub id: String,
+    /// Last renewal time
     pub last_renewal_time: u64,
+    /// Meta
     pub meta: HashMap<String, String>,
+    /// Number of uses (0: unlimited)
     pub num_uses: u64,
+    /// true if token is an orphan
     pub orphan: bool,
+    /// Path
     pub path: String,
+    /// Policies for token
     pub policies: Vec<String>,
+    /// True if renewable
     pub renewable: bool,
+    /// Role
     pub role: String,
+    /// Time-to-live
     pub ttl: u64,
 }
 
+/// Secret data, used in `VaultResponse`
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct SecretData {
     value: String,
 }
 
+/// Vault auth
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct SecretAuth {
+    /// Client token id
     pub client_token: String,
+    /// Accessor
     pub accessor: String,
+    /// Policies
     pub policies: Vec<String>,
+    /// Metadata
     pub metadata: HashMap<String, String>,
+    /// Lease duration
     pub lease_duration: Option<u64>,
+    /// True if renewable
     pub renewable: bool,
 }
 
+/// Vault response. Different vault responses have different `data` types, so `D` is used to
+/// represent this.
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct VaultResponse<D>
     where D: rustc_serialize::Decodable
 {
+    /// Lease id
     pub lease_id: Option<String>,
+    /// True if renewable
     pub renewable: Option<bool>,
+    /// Lease duration
     pub lease_duration: Option<u64>,
+    /// Data
     pub data: Option<D>,
+    /// Warnings
     pub warnings: Option<Vec<String>>,
+    /// Auth
     pub auth: Option<SecretAuth>,
+    /// Wrap info, containing token to perform unwrapping
     pub wrap_info: Option<WrapInfo>,
 }
 
+/// Information provided to retrieve a wrapped response
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct WrapInfo {
-    // TODO: change to a `Duration`
+    // TODO: change to duration
+    /// Time-to-live
     pub ttl: u64,
+    /// Token
     pub token: String,
     // TODO: change to `time`
     // example: "2016-07-07T15:30:44.57928452Z"
+    /// Creation time
     pub creation_time: String,
+    /// Wrapped accessor
     pub wrapped_accessor: String,
 }
 
+/// Wrapped response is serialized json
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct WrapData {
     /// Serialized json string of type `VaultResponse<HashMap<String, String>>`
     response: String,
 }
 
+/// Payload to send to vault when authenticating via app-id
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
     app_id: String,
     user_id: String,
 }
 
+/// Postgresql secret backend
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct PostgresqlData {
+    /// Password
     pub password: String,
+    /// Username
     pub username: String,
 }
 
-header! { (XVaultToken, "X-Vault-Token") => [String] }
-header! { (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String] }
+header! {
+    /// Token used to authenticate with the vault API
+    (XVaultToken, "X-Vault-Token") => [String]
+}
+header! {
+    /// The TTL for the token is set by the client using the X-Vault-Wrap-TTL header and can be
+    /// either an integer number of seconds or a string duration of seconds (15s), minutes (20m),
+    /// or hours (25h). When using the Vault CLI, you can set this via the -wrap-ttl parameter.
+    /// Response wrapping is per-request; it is the presence of a value in this header that
+    /// activates wrapping of the response.
+    ///
+    /// See: https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
+    (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
+}
 
-impl<'a, T> VaultClient<'a, T>
-    where T: rustc_serialize::Decodable
-{
+impl<'a> VaultClient<'a, TokenData> {
     /// Construct a `VaultClient` from an existing vault token
     pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a, TokenData>> {
         let client = Client::new();
@@ -121,7 +174,9 @@ impl<'a, T> VaultClient<'a, T>
             data: decoded,
         })
     }
+}
 
+impl<'a> VaultClient<'a, ()> {
     /// Construct a `VaultClient` via the `App ID`
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
     pub fn new_app_id(host: &'a str,
@@ -152,7 +207,11 @@ impl<'a, T> VaultClient<'a, T>
             data: decoded,
         })
     }
+}
 
+impl<'a, T> VaultClient<'a, T>
+    where T: rustc_serialize::Decodable
+{
     /// Renew lease for `VaultClient`'s token and updates the `self.data.auth` based upon response
     pub fn renew(&mut self) -> Result<()> {
         let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));

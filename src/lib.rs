@@ -7,7 +7,6 @@
         unused_import_braces,
         unused_qualifications,
         unused_results)]
-#![cfg_attr(all(test), feature(test))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(feature = "clippy", allow(unstable_features))]
 #![cfg_attr(feature = "clippy", feature(plugin))]
@@ -24,7 +23,8 @@ extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
 
-mod client;
+/// vault client
+pub mod client;
 
 pub use client::VaultClient as Client;
 
