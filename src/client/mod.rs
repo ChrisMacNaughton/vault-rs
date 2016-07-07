@@ -145,12 +145,25 @@ impl<'a, T> VaultClient<'a, T>
         })
     }
 
-    /// Renew lease for token and updates the stored auth information based upon response
+    /// Renew lease for `VaultClient`'s token and updates the stored auth information based upon response
     pub fn renew(&mut self) -> Result<()> {
         let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
         self.data.auth = vault_res.auth;
         Ok(())
+    }
+
+    /// Renew a specific lease that your token controls
+    /// https://www.vaultproject.io/docs/http/sys-renew.html
+    pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
+        let body = match increment {
+            Some(_) => Some(format!("{{\"increment\": {:?}}}", increment)),
+            None => None,
+        };
+        let mut res = try!(self.put(&format!("{}/v1/sys/renew/{}", self.host, lease_id)[..],
+                                    body.as_ref().map(String::as_ref)));
+        let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        Ok(vault_res)
     }
 
     ///
