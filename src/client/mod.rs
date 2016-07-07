@@ -88,6 +88,12 @@ struct AppIdPayload {
     user_id: String,
 }
 
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct PostgresqlData {
+    pub password: String,
+    pub username: String,
+}
+
 header! { (XVaultToken, "X-Vault-Token") => [String] }
 
 impl<'a, T> VaultClient<'a, T>
@@ -214,6 +220,14 @@ impl<'a, T> VaultClient<'a, T>
         Ok(())
     }
 
+    /// Get postgresql secret backend
+    /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
+    pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlData>> {
+        let mut res = try!(self.get(&format!("/v1/postgresql/creds/{}", name)[..]));
+        let decoded: VaultResponse<PostgresqlData> = try!(parse_vault_response(&mut res));
+        Ok(decoded)
+    }
+
     fn get(&self, endpoint: &str) -> Result<Response> {
         Ok(try!(handle_hyper_response(self.client
                                           .get(&format!("{}{}", self.host, endpoint)[..])
@@ -233,6 +247,18 @@ impl<'a, T> VaultClient<'a, T>
     fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
         let mut req = self.client
                           .post(&format!("{}{}", self.host, endpoint)[..])
+                          .header(XVaultToken(self.token.to_string()))
+                          .header(header::ContentType::json());
+        if body.is_some() {
+            req = req.body(body.unwrap());
+        }
+
+        Ok(try!(handle_hyper_response(req.send())))
+    }
+
+    fn put(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+        let mut req = self.client
+                          .put(&format!("{}{}", self.host, endpoint)[..])
                           .header(XVaultToken(self.token.to_string()))
                           .header(header::ContentType::json());
         if body.is_some() {
