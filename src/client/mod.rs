@@ -94,7 +94,7 @@ pub struct VaultResponse<D>
     pub lease_id: Option<String>,
     /// True if renewable
     pub renewable: Option<bool>,
-    /// Lease duration
+    /// Lease duration (in seconds)
     pub lease_duration: Option<u64>,
     /// Data
     pub data: Option<D>,
