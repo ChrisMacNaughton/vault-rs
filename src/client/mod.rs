@@ -4,17 +4,74 @@ use std::io::Read;
 use hyper::{self, header, Client};
 use hyper::client::response::Response;
 
-use rustc_serialize::{self, json};
+use rustc_serialize::{json, Decodable, Decoder};
 
 use client::error::{Error, Result};
+
+use std::time::Duration;
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 
 /// Errors
 pub mod error;
 
+/// Lease duration
+///
+/// Note: value returned from vault api is assumed to be in seconds
+#[derive(Debug)]
+pub struct VaultDuration(pub Duration);
+
+impl Decodable for VaultDuration {
+    fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<VaultDuration, D::Error> {
+        let num = try!(d.read_u64());
+        Ok(VaultDuration(Duration::from_secs(num)))
+    }
+}
+
+/// Used for vault responses that return seconds since unix epoch
+/// See: https://github.com/hashicorp/vault/issues/1654
+#[derive(Debug)]
+pub struct VaultNaiveDateTime(pub NaiveDateTime);
+impl Decodable for VaultNaiveDateTime {
+    fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<VaultNaiveDateTime, D::Error> {
+        let seconds_since_epoch = try!(d.read_i64());
+        let date_time = NaiveDateTime::from_timestamp_opt(seconds_since_epoch, 0);
+
+        match date_time {
+            Some(dt) => Ok(VaultNaiveDateTime(dt)),
+            None => {
+                Err(d.error(&format!("Could not parse: `{}` as a unix timestamp",
+                                     seconds_since_epoch,
+                                     )))
+            }
+        }
+    }
+}
+
+/// Used for responses that return RFC 3339 timestamps
+/// See: https://github.com/hashicorp/vault/issues/1654
+#[derive(Debug)]
+pub struct VaultDateTime(pub DateTime<FixedOffset>);
+impl Decodable for VaultDateTime {
+    fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<VaultDateTime, D::Error> {
+        let ts = try!(d.read_str());
+        let date_time = DateTime::parse_from_rfc3339(&ts);
+
+        match date_time {
+            Ok(dt) => Ok(VaultDateTime(dt)),
+            Err(e) => {
+                Err(d.error(&format!("Could not parse: `{}` as an RFC 3339 timestamp. Error: \
+                                      `{:?}`",
+                                     ts,
+                                     e)))
+            }
+        }
+    }
+}
+
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
 pub struct VaultClient<'a, T>
-    where T: rustc_serialize::Decodable
+    where T: Decodable
 {
     /// URL to vault instance
     pub host: &'a str,
@@ -27,22 +84,22 @@ pub struct VaultClient<'a, T>
 }
 
 /// Token data, used in `VaultResponse`
-#[derive(RustcDecodable, RustcEncodable, Debug)]
+#[derive(RustcDecodable, Debug)]
 pub struct TokenData {
     /// Accessor token
     pub accessor: String,
     /// Creation time
-    pub creation_time: u64,
+    pub creation_time: VaultNaiveDateTime,
     /// Creation time-to-live
-    pub creation_ttl: u64,
+    pub creation_ttl: VaultDuration,
     /// Display name
     pub display_name: String,
     /// Max time-to-live
-    pub explicit_max_ttl: u64,
+    pub explicit_max_ttl: VaultDuration,
     /// Token id
     pub id: String,
     /// Last renewal time
-    pub last_renewal_time: u64,
+    pub last_renewal_time: VaultDuration,
     /// Meta
     pub meta: HashMap<String, String>,
     /// Number of uses (0: unlimited)
@@ -58,7 +115,7 @@ pub struct TokenData {
     /// Role
     pub role: String,
     /// Time-to-live
-    pub ttl: u64,
+    pub ttl: VaultDuration,
 }
 
 /// Secret data, used in `VaultResponse`
@@ -68,7 +125,7 @@ struct SecretData {
 }
 
 /// Vault auth
-#[derive(RustcDecodable, RustcEncodable, Debug)]
+#[derive(RustcDecodable, Debug)]
 pub struct SecretAuth {
     /// Client token id
     pub client_token: String,
@@ -79,23 +136,23 @@ pub struct SecretAuth {
     /// Metadata
     pub metadata: HashMap<String, String>,
     /// Lease duration
-    pub lease_duration: Option<u64>,
+    pub lease_duration: Option<VaultDuration>,
     /// True if renewable
     pub renewable: bool,
 }
 
 /// Vault response. Different vault responses have different `data` types, so `D` is used to
 /// represent this.
-#[derive(RustcDecodable, RustcEncodable, Debug)]
+#[derive(RustcDecodable, Debug)]
 pub struct VaultResponse<D>
-    where D: rustc_serialize::Decodable
+    where D: Decodable
 {
     /// Lease id
     pub lease_id: Option<String>,
     /// True if renewable
     pub renewable: Option<bool>,
     /// Lease duration (in seconds)
-    pub lease_duration: Option<u64>,
+    pub lease_duration: Option<VaultDuration>,
     /// Data
     pub data: Option<D>,
     /// Warnings
@@ -107,17 +164,15 @@ pub struct VaultResponse<D>
 }
 
 /// Information provided to retrieve a wrapped response
-#[derive(RustcDecodable, RustcEncodable, Debug)]
+#[derive(RustcDecodable, Debug)]
 pub struct WrapInfo {
     // TODO: change to duration
     /// Time-to-live
-    pub ttl: u64,
+    pub ttl: VaultDuration,
     /// Token
     pub token: String,
-    // TODO: change to `time`
-    // example: "2016-07-07T15:30:44.57928452Z"
-    /// Creation time
-    pub creation_time: String,
+    /// Creation time, note this returned in RFC 3339 format
+    pub creation_time: VaultDateTime,
     /// Wrapped accessor
     pub wrapped_accessor: String,
 }
@@ -212,7 +267,7 @@ impl<'a> VaultClient<'a, ()> {
 }
 
 impl<'a, T> VaultClient<'a, T>
-    where T: rustc_serialize::Decodable
+    where T: Decodable
 {
     /// Renew lease for `VaultClient`'s token and updates the `self.data.auth` based upon response
     pub fn renew(&mut self) -> Result<()> {
@@ -389,7 +444,7 @@ fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> 
 }
 
 fn parse_vault_response<T>(res: &mut Response) -> Result<VaultResponse<T>>
-    where T: rustc_serialize::Decodable
+    where T: Decodable
 {
     let mut body = String::new();
     let _ = try!(res.read_to_string(&mut body));

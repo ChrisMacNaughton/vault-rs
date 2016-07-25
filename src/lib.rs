@@ -22,6 +22,7 @@ extern crate log;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
+extern crate chrono;
 
 /// vault client
 pub mod client;
