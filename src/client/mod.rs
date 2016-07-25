@@ -164,9 +164,10 @@ impl<'a> VaultClient<'a, TokenData> {
     /// Construct a `VaultClient` from an existing vault token
     pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a, TokenData>> {
         let client = Client::new();
-        let mut res = try!(handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
-                    .header(XVaultToken(token.to_string()))
-                    .send()));
+        let mut res = try!(
+            handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
+                                  .header(XVaultToken(token.to_string()))
+                                  .send()));
         let decoded: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
         Ok(VaultClient {
             host: host,
@@ -191,8 +192,8 @@ impl<'a> VaultClient<'a, ()> {
         }));
         let mut res =
             try!(handle_hyper_response(client.post(&format!("{}/v1/auth/app-id/login", host)[..])
-                                             .body(&payload)
-                                             .send()));
+                .body(&payload)
+                .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
         let token = match decoded.auth {
             Some(ref auth) => auth.client_token.clone(),
@@ -327,9 +328,9 @@ impl<'a, T> VaultClient<'a, T>
 
     fn get(&self, endpoint: &str, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
-                          .get(&format!("{}{}", self.host, endpoint)[..])
-                          .header(XVaultToken(self.token.to_string()))
-                          .header(header::ContentType::json());
+            .get(&format!("{}{}", self.host, endpoint)[..])
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json());
         if wrap_ttl.is_some() {
             req = req.header(XVaultWrapTTL(wrap_ttl.unwrap().to_string()));
         }
@@ -339,17 +340,17 @@ impl<'a, T> VaultClient<'a, T>
 
     fn delete(&self, endpoint: &str) -> Result<Response> {
         Ok(try!(handle_hyper_response(self.client
-                                          .delete(&format!("{}{}", self.host, endpoint)[..])
-                                          .header(XVaultToken(self.token.to_string()))
-                                          .header(header::ContentType::json())
-                                          .send())))
+            .delete(&format!("{}{}", self.host, endpoint)[..])
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json())
+            .send())))
     }
 
     fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
         let mut req = self.client
-                          .post(&format!("{}{}", self.host, endpoint)[..])
-                          .header(XVaultToken(self.token.to_string()))
-                          .header(header::ContentType::json());
+            .post(&format!("{}{}", self.host, endpoint)[..])
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json());
         if body.is_some() {
             req = req.body(body.unwrap());
         }
@@ -359,9 +360,9 @@ impl<'a, T> VaultClient<'a, T>
 
     fn put(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
         let mut req = self.client
-                          .put(&format!("{}{}", self.host, endpoint)[..])
-                          .header(XVaultToken(self.token.to_string()))
-                          .header(header::ContentType::json());
+            .put(&format!("{}{}", self.host, endpoint)[..])
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json());
         if body.is_some() {
             req = req.body(body.unwrap());
         }
