@@ -166,7 +166,6 @@ pub struct VaultResponse<D>
 /// Information provided to retrieve a wrapped response
 #[derive(RustcDecodable, Debug)]
 pub struct WrapInfo {
-    // TODO: change to duration
     /// Time-to-live
     pub ttl: VaultDuration,
     /// Token
