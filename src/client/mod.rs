@@ -276,6 +276,12 @@ impl<'a, T> VaultClient<'a, T>
         Ok(())
     }
 
+    /// Revoke `VaultClient`'s token. This token can no longer be used.
+    pub fn revoke(&mut self) -> Result<()> {
+        let _ = try!(self.post(&format!("{}/v1/auth/token/revoke-self", self.host), None));
+        Ok(())
+    }
+
     /// Renew a specific lease that your token controls
     /// https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
