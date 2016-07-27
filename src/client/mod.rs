@@ -295,6 +295,13 @@ impl<'a, T> VaultClient<'a, T>
         Ok(vault_res)
     }
 
+    /// Lookup token information
+    pub fn lookup(&mut self) -> Result<VaultResponse<TokenData>> {
+        let mut res = try!(self.get(&format!("{}/v1/auth/token/lookup-self", self.host), None));
+        let vault_res: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
+        Ok(vault_res)
+    }
+
     ///
     /// Saves a secret
     ///
