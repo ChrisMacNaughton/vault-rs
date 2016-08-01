@@ -126,7 +126,7 @@ struct SecretData {
 
 /// Vault auth
 #[derive(RustcDecodable, Debug)]
-pub struct SecretAuth {
+pub struct Auth {
     /// Client token id
     pub client_token: String,
     /// Accessor
@@ -158,7 +158,7 @@ pub struct VaultResponse<D>
     /// Warnings
     pub warnings: Option<Vec<String>>,
     /// Auth
-    pub auth: Option<SecretAuth>,
+    pub auth: Option<Auth>,
     /// Wrap info, containing token to perform unwrapping
     pub wrap_info: Option<WrapInfo>,
 }
