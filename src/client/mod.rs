@@ -192,7 +192,7 @@ struct AppIdPayload {
 
 /// Postgresql secret backend
 #[derive(RustcDecodable, RustcEncodable, Debug)]
-pub struct PostgresqlData {
+pub struct PostgresqlLogin {
     /// Password
     pub password: String,
     /// Username
@@ -387,9 +387,9 @@ impl<'a, T> VaultClient<'a, T>
 
     /// Get postgresql secret backend
     /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
-    pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlData>> {
+    pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlLogin>> {
         let mut res = try!(self.get(&format!("/v1/postgresql/creds/{}", name)[..], None));
-        let decoded: VaultResponse<PostgresqlData> = try!(parse_vault_response(&mut res));
+        let decoded: VaultResponse<PostgresqlLogin> = try!(parse_vault_response(&mut res));
         Ok(decoded)
     }
 
