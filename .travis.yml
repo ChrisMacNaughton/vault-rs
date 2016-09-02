@@ -39,7 +39,6 @@ install:
 - export PATH=$HOME/bin:$PATH
 - vault server -dev > /dev/null 2>&1 &
 script:
-- travis-cargo build
 - travis-cargo test
 after_success:
 - travis-cargo coveralls --no-sudo
