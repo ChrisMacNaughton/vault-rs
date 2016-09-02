@@ -8,6 +8,8 @@ mkdir $GOPATH
 
 export PATH=$GOPATH/bin:$PATH
 
+bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+
 gvm get
 gvm update && source $HOME/.gvm/scripts/gvm
 gvm install 1.7 --binary || gvm install 1.7
