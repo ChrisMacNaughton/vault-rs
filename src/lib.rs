@@ -1,12 +1,34 @@
+
+#![deny(missing_docs,
+        missing_debug_implementations,
+        trivial_casts,
+        trivial_numeric_casts,
+        unsafe_code,
+        unstable_features,
+        unused_import_braces,
+        unused_qualifications,
+        unused_results)]
+#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(feature = "clippy", allow(unstable_features))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", deny(clippy))]
+
+//! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
+
 #[macro_use]
 extern crate hyper;
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate quick_error;
+extern crate chrono;
 
-mod client;
-
+/// vault client
+pub mod client;
 pub use client::VaultClient as Client;
+pub use client::error::Error;
 
 #[cfg(test)]
 mod tests {
@@ -24,7 +46,7 @@ mod tests {
         let host = "http://127.0.0.1:8200";
         let token = "test12345";
         let client = Client::new(host, token).unwrap();
-
+        println!("Created client!");
         let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
