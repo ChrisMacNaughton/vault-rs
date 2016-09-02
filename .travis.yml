@@ -6,6 +6,8 @@ addons:
       - libdw-dev
       - unzip
 language: rust
+go:
+  - 1.7
 rust:
 - nightly
 - beta
