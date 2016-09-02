@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::io::Read;
-// use std::io;
+use std::io;
 
 use hyper::Client;
 use hyper::client::response::Response;
-use hyper::error::Error;
+// use hyper::error::Error;
 use hyper::header;
 // use hyper::header::Connection;
 use hyper::status::StatusCode;
@@ -37,7 +37,7 @@ struct VaultSecret {
     lease_id: Option<String>,
     renewable: Option<bool>,
     lease_duration: Option<i64>,
-    data: SecretData,
+    data: Option<SecretData>,
     warnings: Option<Vec<String>>,
     auth: Option<SecretAuth>,
 }
@@ -51,21 +51,22 @@ impl<'a> VaultClient<'a> {
         match client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
             .header(XVaultToken(token.to_string()))
             .send() {
-                Ok(s) => {
-                    match s.status {
-                        StatusCode::Forbidden => return Err("Forbidden".to_string()),
-                        _ => { }
+            Ok(s) => {
+                match s.status {
+                    StatusCode::Forbidden | StatusCode::BadRequest => {
+                        return Err("Forbidden".to_string())
                     }
-
-                },
-                // Err(Error { kind: ConnectionRefused }) => continue,
-                Err(e) => {
-                    match e {
-                        _ => return Err(format!("{:?}", e)),
-                    }
+                    _ => {}
                 }
-
             }
+            // Err(Error { kind: ConnectionRefused }) => continue,
+            Err(e) => {
+                match e {
+                    _ => return Err(format!("{:?}", e)),
+                }
+            }
+
+        }
         Ok(VaultClient {
             host: host,
             token: token,
@@ -88,17 +89,18 @@ impl<'a> VaultClient<'a> {
     /// # }
     /// ```
 
-    pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, &str> {
-        match self.post(&format!("/v1/secret/{}", key)[..], &format!("{{\"value\": \"{}\"}}", value.replace("\n", "\\n"))[..]) {
+    pub fn set_secret(&self, key: &str, value: &str) -> Result<&str, io::Error> {
+        match self.post(&format!("/v1/secret/{}", key)[..],
+                        &format!("{{\"value\": \"{}\"}}", value.replace("\n", "\\n"))[..]) {
             Ok(s) => {
                 match s.status {
                     StatusCode::NoContent => Ok(""),
-                    _ => { Err("Error setting secret")}
+                    _ => Err(io::Error::new(io::ErrorKind::Other, "Error setting secret")),
                 }
-            },
+            }
             Err(e) => {
                 println!("{:?}", e);
-                Err("err")
+                Err(io::Error::new(io::ErrorKind::Other, format!("wtf: {:?}", e)))
             }
         }
     }
@@ -129,15 +131,18 @@ impl<'a> VaultClient<'a> {
                 let decoded: Result<VaultSecret, DecoderError> = json::decode(&body);
                 match decoded {
                     Ok(decoded) => {
-                        let d: SecretData = decoded.data;
-                        Ok(d.value)
-                    },
+                        if let Some(d) = decoded.data {
+                            Ok(d.value)
+                        } else {
+                            Err("Missing Data Field")
+                        }
+                    }
                     Err(e) => {
-                        println!("Error: {:?}", e);
+                        println!("Error: {:?} :: Data: {}", e, &body);
                         Err("Got a bad secret back")
                     }
                 }
-            },
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 Err("err")
@@ -166,9 +171,9 @@ impl<'a> VaultClient<'a> {
             Ok(s) => {
                 match s.status {
                     StatusCode::NoContent => Ok(""),
-                    _ => { Err("Error setting secret")}
+                    _ => Err("Error setting secret"),
                 }
-            },
+            }
             Err(e) => {
                 println!("{:?}", e);
                 Err("err")
@@ -177,53 +182,56 @@ impl<'a> VaultClient<'a> {
     }
 
     fn get(&self, endpoint: &str) -> Result<Response, String> {
-        match self.client.get(&format!("{}{}", self.host, endpoint)[..])
+        match self.client
+            .get(&format!("{}{}", self.host, endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .send() {
-                Ok(s) => return Ok(s),
-                // Err(Error { kind: ConnectionRefused }) => continue,
-                Err(e) => {
-                    match e {
-                        _ => return Err(format!("{:?}", e)),
-                    }
+            Ok(s) => return Ok(s),
+            // Err(Error { kind: ConnectionRefused }) => continue,
+            Err(e) => {
+                match e {
+                    _ => return Err(format!("{:?}", e)),
                 }
             }
+        }
 
         Err("No working host".to_string())
     }
 
     fn delete(&self, endpoint: &str) -> Result<Response, String> {
-        match self.client.delete(&format!("{}{}", self.host, endpoint)[..])
+        match self.client
+            .delete(&format!("{}{}", self.host, endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .send() {
-                Ok(s) => return Ok(s),
-                // Err(Error { kind: ConnectionRefused }) => continue,
-                Err(e) => {
-                    match e {
-                        _ => return Err(format!("{:?}", e)),
-                    }
+            Ok(s) => return Ok(s),
+            // Err(Error { kind: ConnectionRefused }) => continue,
+            Err(e) => {
+                match e {
+                    _ => return Err(format!("{:?}", e)),
                 }
             }
+        }
 
         Err("No working host".to_string())
     }
 
     fn post(&self, endpoint: &str, body: &str) -> Result<Response, String> {
-        match self.client.post(&format!("{}{}", self.host, endpoint)[..])
+        match self.client
+            .post(&format!("{}{}", self.host, endpoint)[..])
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .body(body)
             .send() {
-                Ok(s) => return Ok(s),
-                // Err(Error { kind: ConnectionRefused }) => continue,
-                Err(e) => {
-                    match e {
-                        _ => return Err(format!("{:?}", e)),
-                    }
+            Ok(s) => return Ok(s),
+            // Err(Error { kind: ConnectionRefused }) => continue,
+            Err(e) => {
+                match e {
+                    _ => return Err(format!("{:?}", e)),
                 }
             }
+        }
         Err("No working host".to_string())
     }
     // fn get_new_host(&self) -> usize {
@@ -231,4 +239,3 @@ impl<'a> VaultClient<'a> {
     //     rng.gen_range(0, hosts.len() as u32 - 1)
     // }
 }
-
