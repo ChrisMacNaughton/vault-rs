@@ -4,13 +4,13 @@ set -eux
 mkdir -p $HOME/bin
 
 export GOPATH=$HOME/go
-mkdir $GOPATH
+mkdir -p $GOPATH
 
 export PATH=$GOPATH/bin:$PATH
 
 bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
-source /home/travis/.gvm/scripts/gvm
-gvm install go1.7 --binary || gvm install go1.7
+source $HOME/.gvm/scripts/gvm
+gvm install go1.7 --binary || gvm install go1.7 || true
 gvm use go1.7
 
 go get github.com/tools/godep
