@@ -1,6 +1,5 @@
 # Vault
 [![Build Status](https://travis-ci.org/ChrisMacNaughton/vault-rs.svg?branch=master)](https://travis-ci.org/ChrisMacNaughton/vault-rs)
-# [![Build Status](https://git.cmacinfo.com/chris/vault-rs/badges/master/build.svg)](https://git.cmacinfo.com/chris/vault-rs/builds)
 
 [HashiCorp](https://hashicorp.com/) [Vault](https://www.vaultproject.io) API client for Rust.
 
