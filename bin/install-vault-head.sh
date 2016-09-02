@@ -10,9 +10,8 @@ export PATH=$GOPATH/bin:$PATH
 
 bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
 source /home/travis/.gvm/scripts/gvm
-gvm get
-gvm install 1.7 --binary || gvm install 1.7
-gvm use 1.7
+gvm install go1.7 --binary || gvm install go1.7
+gvm use go1.7
 
 go get github.com/tools/godep
 go get github.com/mitchellh/gox
