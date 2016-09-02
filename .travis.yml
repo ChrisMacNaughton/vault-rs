@@ -46,6 +46,4 @@ script:
 - travis-cargo test
 after_success:
 - travis-cargo coveralls --no-sudo
-- cargo doc --no-deps
-- travis-cargo --only stable doc-upload
 sudo: false

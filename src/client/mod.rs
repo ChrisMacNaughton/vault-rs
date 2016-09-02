@@ -53,7 +53,8 @@ impl<'a> VaultClient<'a> {
             .send() {
                 Ok(s) => {
                     match s.status {
-                        StatusCode::Forbidden => return Err("Forbidden".to_string()),
+                        StatusCode::Forbidden |
+                        StatusCode::BadRequest => return Err("Forbidden".to_string()),
                         _ => { }
                     }
 
