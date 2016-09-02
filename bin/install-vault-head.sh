@@ -4,15 +4,20 @@ set -eux
 mkdir -p $HOME/bin
 
 export GOPATH=$HOME/go
-mkdir -p $GOPATH
+mkdir $GOPATH
 
 export PATH=$GOPATH/bin:$PATH
 
+gvm get
+gvm update && source $HOME/.gvm/scripts/gvm
+gvm install 1.7 --binary || gvm install 1.7
+gvm use 1.7
+
+go get github.com/tools/godep
+go get github.com/mitchellh/gox
+
 git clone https://github.com/hashicorp/vault.git $GOPATH/src/github.com/hashicorp/vault
 cd $GOPATH/src/github.com/hashicorp/vault
-make bootstrap
-# go get github.com/tools/godep
-# go get github.com/mitchellh/gox
 make dev
 
 mv bin/vault $HOME/bin
