@@ -653,7 +653,7 @@ impl<T> VaultClient<T>
     /// https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
     pub fn get_secret_wrapped(&self, key: &str, wrap_ttl: &str) -> Result<VaultResponse<()>> {
         let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], Some(wrap_ttl)));
-        Ok(try!(parse_vault_response(&mut res)))
+        parse_vault_response(&mut res)
     }
 
     /// Fetch wrapped response from `cubbyhole/response`
