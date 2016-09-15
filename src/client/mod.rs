@@ -185,6 +185,8 @@ pub struct Auth {
 pub struct VaultResponse<D>
     where D: Decodable
 {
+    /// Request id
+    pub request_id: String,
     /// Lease id
     pub lease_id: Option<String>,
     /// True if renewable
