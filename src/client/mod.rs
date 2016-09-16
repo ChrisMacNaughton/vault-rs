@@ -223,11 +223,40 @@ pub struct WrapData {
     response: String,
 }
 
+/// AppRole properties
+#[derive(RustcDecodable, Debug)]
+pub struct AppRoleProperties {
+    /// Require `secret_id` to be presented when logging in using this AppRole. Defaults to 'true'.
+    pub bind_secret_id: bool,
+    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can perform the login operation.
+    pub bound_cidr_list: String,
+    /// If set, the token generated using this AppRole is a periodic token; so long as it is renewed
+    /// it never expires, but the TTL set on the token at each renewal is fixed to the value
+    /// specified here. If this value is modified, the token will pick up the new value at its next
+    /// renewal.
+    pub period: VaultDuration,
+    /// List of policies set on tokens issued via this AppRole.
+    pub policies: Vec<String>,
+    /// Number of times any particular SecretID can be used to fetch a token from this AppRole, after which the SecretID will expire.
+    pub secret_id_num_uses: u64,
+    /// Duration after which any SecretID expires.
+    pub secret_id_ttl: VaultDuration,
+    /// Duration after which the issued token can no longer be renewed.
+    pub token_max_ttl: VaultDuration,
+}
+
 /// Payload to send to vault when authenticating via app-id
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
     app_id: String,
     user_id: String,
+}
+
+/// Payload to send to vault when authenticating via AppRole
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct AppRolePayload {
+    role_id: String,
+    secret_id: Option<String>,
 }
 
 /// Postgresql secret backend
@@ -422,6 +451,41 @@ impl VaultClient<()> {
         };
         Ok(VaultClient {
             host: host,
+            token: token,
+            client: client,
+            data: Some(decoded),
+        })
+    }
+
+    /// Construct a `VaultClient` via the `AppRole`
+    /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
+    pub fn new_app_role<S: Into<String>, R: AsRef<str>>(host: &'a R,
+                                                        role_id: S,
+                                                        secret_id: Option<S>)
+                                                        -> Result<VaultClient<'a, ()>> {
+        let client = Client::new();
+        let secret_id = match secret_id {
+            Some(s) => Some(s.into()),
+            None => None,
+        };
+        let payload = try!(json::encode(&AppRolePayload {
+            role_id: role_id.into(),
+            secret_id: secret_id,
+        }));
+        let mut res =
+            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/approle/login", host.as_ref())[..])
+                .body(&payload)
+                .send()));
+        let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        let token = match decoded.auth {
+            Some(ref auth) => auth.client_token.clone(),
+            None => {
+                return Err(Error::Vault(format!("No client token found in response: `{:?}`",
+                                                &decoded.auth)))
+            }
+        };
+        Ok(VaultClient {
+            host: host.as_ref(),
             token: token,
             client: client,
             data: Some(decoded),
@@ -682,6 +746,14 @@ impl<T> VaultClient<T>
         let mut res = try!(self.get("/v1/cubbyhole/response", None));
         let decoded: VaultResponse<WrapData> = try!(parse_vault_response(&mut res));
         Ok(try!(json::decode(&decoded.data.unwrap().response[..])))
+    }
+
+    /// Reads the properties of an existing AppRole.
+    pub fn get_app_role_properties(&self,
+                                   role_name: &str)
+                                   -> Result<VaultResponse<AppRoleProperties>> {
+        let mut res = try!(self.get(&format!("/v1/auth/approle/role/{}", role_name), None));
+        parse_vault_response(&mut res)
     }
 
     ///
