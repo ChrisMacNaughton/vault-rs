@@ -461,10 +461,10 @@ impl VaultClient<()> {
 
     /// Construct a `VaultClient` via the `AppRole`
     /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
-    pub fn new_app_role<S: Into<String>, R: AsRef<str>>(host: &'a R,
-                                                        role_id: S,
-                                                        secret_id: Option<S>)
-                                                        -> Result<VaultClient<'a, ()>> {
+    pub fn new_app_role<R: Into<String>, S: Into<String>>(host: &'a str,
+                                                          role_id: R,
+                                                          secret_id: Option<S>)
+                                                          -> Result<VaultClient<'a, ()>> {
         let client = Client::new();
         let secret_id = match secret_id {
             Some(s) => Some(s.into()),
@@ -475,7 +475,7 @@ impl VaultClient<()> {
             secret_id: secret_id,
         }));
         let mut res =
-            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/approle/login", host.as_ref())[..])
+            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/approle/login", host)[..])
                 .body(&payload)
                 .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
@@ -487,7 +487,7 @@ impl VaultClient<()> {
             }
         };
         Ok(VaultClient {
-            host: host.as_ref(),
+            host: host,
             token: token,
             client: client,
             data: Some(decoded),
