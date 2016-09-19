@@ -97,6 +97,10 @@ impl<'a> TryFrom<&'a str> for Url {
 #[cfg(test)]
 mod tests {
     use client::VaultClient as Client;
+    use client::EndpointResponse;
+    use client::HttpVerb::*;
+    use std::collections::HashMap;
+
     /// vault host for testing
     const HOST: &'static str = "http://127.0.0.1:8200";
     /// root token needed for testing
@@ -148,6 +152,57 @@ mod tests {
     }
 
     #[test]
+    fn it_can_perform_approle_workflow() {
+        let c = Client::new(HOST, TOKEN).unwrap();
+        let mut body = "{\"type\":\"approle\"}";
+        // enable approle auth backend
+        let mut res: EndpointResponse<()> =
+            c.call_endpoint(POST, "sys/auth/approle", None, Some(body))
+                .unwrap();
+        panic_non_empty(res);
+        // make a new approle
+        body = "{\"secret_id_ttl\":\"10m\", \"token_ttl\":\"20m\", \"token_max_ttl\":\"30m\", \
+                \"secret_id_num_uses\":40}";
+        res = c.call_endpoint(POST, "auth/approle/role/test_role", None, Some(body))
+            .unwrap();
+        panic_non_empty(res);
+
+        // let test the properties endpoint while we're here
+        assert!(c.get_app_role_properties("test_role").is_ok());
+
+        // get approle's role-id
+        let res: EndpointResponse<HashMap<String, String>> =
+            c.call_endpoint(GET, "auth/approle/role/test_role/role-id", None, Some(body))
+                .unwrap();
+        let data = match res {
+            EndpointResponse::VaultResponse(res) => res.data.unwrap(),
+            _ => panic!("expected vault response, got: {:?}", res),
+        };
+        let role_id = data.get("role_id").unwrap();
+        assert!(role_id.len() > 0);
+
+        // now get a secret id for this approle
+        let res: EndpointResponse<HashMap<String, String>> = c.call_endpoint(POST,
+                           "auth/approle/role/test_role/secret-id",
+                           None,
+                           Some(body))
+            .unwrap();
+        let data = match res {
+            EndpointResponse::VaultResponse(res) => res.data.unwrap(),
+            _ => panic!("expected vault response, got: {:?}", res),
+        };
+        let secret_id = data.get("secret_id").unwrap();
+
+        // now finally we can try to actually login!
+        let _ = Client::new_app_role(HOST, &role_id[..], Some(&secret_id[..])).unwrap();
+
+        // clean up by disabling approle auth backend
+        let res = c.call_endpoint(DELETE, "sys/auth/approle", None, None)
+            .unwrap();
+        panic_non_empty(res);
+    }
+
+    #[test]
     fn it_can_read_a_wrapped_secret() {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
@@ -161,4 +216,14 @@ mod tests {
         let res = c2.get_cubbyhole_response().unwrap();
         assert_eq!(res.data.unwrap().get("value").unwrap(), "second world");
     }
+
+    // helper fn to panic on empty responses
+    fn panic_non_empty(res: EndpointResponse<()>) {
+        match res {
+            EndpointResponse::Empty => {}
+            _ => panic!("expected empty response, received: {:?}", res),
+        }
+    }
+
+
 }
