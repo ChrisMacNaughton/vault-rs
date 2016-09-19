@@ -97,19 +97,19 @@ impl<'a> TryFrom<&'a str> for Url {
 #[cfg(test)]
 mod tests {
     use client::VaultClient as Client;
+    /// vault host for testing
+    const HOST: &'static str = "http://127.0.0.1:8200";
+    /// root token needed for testing
+    const TOKEN: &'static str = "test12345";
 
     #[test]
     fn it_can_create_a_client() {
-        let host = "http://127.0.0.1:8200";
-        let token = "test12345";
-        let _ = Client::new(host, token).unwrap();
+        let _ = Client::new(HOST, TOKEN).unwrap();
     }
 
     #[test]
     fn it_can_query_secrets() {
-        let host = "http://127.0.0.1:8200";
-        let token = "test12345";
-        let client = Client::new(host, token).unwrap();
+        let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
@@ -118,9 +118,7 @@ mod tests {
 
     #[test]
     fn it_can_write_secrets_with_newline() {
-        let host = "http://127.0.0.1:8200";
-        let token = "test12345";
-        let client = Client::new(host, token).unwrap();
+        let client = Client::new(HOST, TOKEN).unwrap();
 
         let res = client.set_secret("hello_set", "world\n");
         assert!(res.is_ok());
@@ -130,18 +128,14 @@ mod tests {
 
     #[test]
     fn it_returns_err_on_forbidden() {
-        let host = "http://127.0.0.1:8200";
-        let token = "test123456";
-        let client = Client::new(host, token);
+        let client = Client::new(HOST, "test123456");
         // assert_eq!(Err("Forbidden".to_string()), client);
         assert!(client.is_err());
     }
 
     #[test]
     fn it_can_delete_a_secret() {
-        let host = "http://127.0.0.1:8200";
-        let token = "test12345";
-        let client = Client::new(host, token).unwrap();
+        let client = Client::new(HOST, TOKEN).unwrap();
 
         let res = client.set_secret("hello_delete", "world");
         assert!(res.is_ok());
