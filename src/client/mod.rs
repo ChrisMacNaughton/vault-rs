@@ -213,7 +213,7 @@ pub struct WrapInfo {
     /// Creation time, note this returned in RFC 3339 format
     pub creation_time: VaultDateTime,
     /// Wrapped accessor
-    pub wrapped_accessor: String,
+    pub wrapped_accessor: Option<String>,
 }
 
 /// Wrapped response is serialized json
