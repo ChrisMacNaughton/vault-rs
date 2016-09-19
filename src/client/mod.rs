@@ -391,6 +391,30 @@ impl TokenOptions {
     }
 }
 
+/// http verbs
+#[derive(Debug)]
+pub enum HttpVerb {
+    /// GET
+    GET,
+    /// POST
+    POST,
+    /// PUT
+    PUT,
+    /// DELETE
+    DELETE,
+}
+
+/// endpoint response variants
+#[derive(Debug)]
+pub enum EndpointResponse<D>
+    where D: Decodable
+{
+    /// Vault response
+    VaultResponse(VaultResponse<D>),
+    /// Empty, but still successful response
+    Empty,
+}
+
 header! {
     /// Token used to authenticate with the vault API
     (XVaultToken, "X-Vault-Token") => [String]
@@ -531,7 +555,7 @@ impl<T> VaultClient<T>
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew(&mut self) -> Result<()> {
-        let mut res = try!(self.post("/v1/auth/token/renew-self", None));
+        let mut res = try!(self.post("/v1/auth/token/renew-self", None, None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
         if let Some(ref mut data) = self.data {
             data.auth = vault_res.auth;
@@ -559,7 +583,7 @@ impl<T> VaultClient<T>
     pub fn renew_token(&self, token: &str, increment: Option<u64>) -> Result<Auth> {
         let body = try!(json::encode(&RenewOptions { increment: increment }));
         let url = format!("/v1/auth/token/renew/{}", token);
-        let mut res = try!(self.post(&url, Some(&body)));
+        let mut res = try!(self.post(&url, Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         vault_res.auth
             .ok_or_else(|| Error::Vault("No auth data returned while renewing token".to_owned()))
@@ -594,7 +618,7 @@ impl<T> VaultClient<T>
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn revoke(self) -> Result<()> {
-        let _ = try!(self.post("/v1/auth/token/revoke-self", None));
+        let _ = try!(self.post("/v1/auth/token/revoke-self", None, None));
         Ok(())
     }
 
@@ -620,7 +644,7 @@ impl<T> VaultClient<T>
     /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
         let body = try!(json::encode(&RenewOptions { increment: increment }));
-        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id), Some(&body)));
+        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id), Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
@@ -679,7 +703,7 @@ impl<T> VaultClient<T>
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn create_token(&self, opts: &TokenOptions) -> Result<Auth> {
         let body = try!(json::encode(opts));
-        let mut res = try!(self.post("/v1/auth/token/create", Some(&body)));
+        let mut res = try!(self.post("/v1/auth/token/create", Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         vault_res.auth.ok_or_else(|| Error::Vault("Created token did not include auth data".into()))
     }
@@ -700,7 +724,8 @@ impl<T> VaultClient<T>
     /// ```
     pub fn set_secret(&self, key: &str, value: &str) -> Result<()> {
         let _ = try!(self.post(&format!("/v1/secret/{}", key)[..],
-                               Some(&format!("{{\"value\": \"{}\"}}", self.escape(value))[..])));
+                               Some(&format!("{{\"value\": \"{}\"}}", self.escape(value))[..]),
+                               None));
         Ok(())
     }
 
@@ -750,12 +775,46 @@ impl<T> VaultClient<T>
         Ok(try!(json::decode(&decoded.data.unwrap().response[..])))
     }
 
-    /// Reads the properties of an existing AppRole.
+    /// Reads the properties of an existing `AppRole`.
     pub fn get_app_role_properties(&self,
                                    role_name: &str)
                                    -> Result<VaultResponse<AppRoleProperties>> {
         let mut res = try!(self.get(&format!("/v1/auth/approle/role/{}", role_name), None));
         parse_vault_response(&mut res)
+    }
+
+    /// This function is an "escape hatch" of sorts to call any other vault api methods that
+    /// aren't directly supported in this library.
+    ///
+    /// Select the http verb you want, along with the endpoint, e.g. `auth/token/create`, along
+    /// with any wrapping or associated body text and the request will be sent.
+    ///
+    /// See `it_can_perform_approle_workflow` test case for examples.
+    pub fn call_endpoint<D: Decodable>(&self,
+                                       http_verb: HttpVerb,
+                                       endpoint: &str,
+                                       wrap_ttl: Option<&str>,
+                                       body: Option<&str>)
+                                       -> Result<EndpointResponse<D>> {
+        let url = format!("/v1/{}", endpoint);
+        match http_verb {
+            HttpVerb::GET => {
+                let mut res = try!(self.get(&url, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::POST => {
+                let mut res = try!(self.post(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::PUT => {
+                let mut res = try!(self.post(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::DELETE => {
+                let mut res = try!(self.delete(&url));
+                parse_endpoint_response(&mut res)
+            }
+        }
     }
 
     ///
@@ -815,8 +874,8 @@ impl<T> VaultClient<T>
             .get(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
-        if wrap_ttl.is_some() {
-            req = req.header(XVaultWrapTTL(wrap_ttl.unwrap().to_string()));
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
         }
 
         Ok(try!(handle_hyper_response(req.send())))
@@ -830,11 +889,14 @@ impl<T> VaultClient<T>
             .send())))
     }
 
-    fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+    fn post(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .post(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
         if let Some(body) = body {
             req = req.body(body);
         }
@@ -842,13 +904,16 @@ impl<T> VaultClient<T>
         Ok(try!(handle_hyper_response(req.send())))
     }
 
-    fn put(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+    fn put(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .put(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
-        if body.is_some() {
-            req = req.body(body.unwrap());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
+        if let Some(body) = body {
+            req = req.body(body);
         }
 
         Ok(try!(handle_hyper_response(req.send())))
@@ -880,4 +945,19 @@ fn parse_vault_response<T>(res: &mut Response) -> Result<T>
     trace!("Response: {:?}", &body);
     let vault_res: T = try!(json::decode(&body));
     Ok(vault_res)
+}
+
+/// checks if response is empty before attempting to convert to a `VaultResponse`
+fn parse_endpoint_response<T>(res: &mut Response) -> Result<EndpointResponse<T>>
+    where T: Decodable
+{
+    let mut body = String::new();
+    let _ = try!(res.read_to_string(&mut body));
+    println!("Response: {:?}", &body);
+    if body.is_empty() {
+        Ok(EndpointResponse::Empty)
+    } else {
+        let vault_res: VaultResponse<T> = try!(json::decode(&body));
+        Ok(EndpointResponse::VaultResponse(vault_res))
+    }
 }
