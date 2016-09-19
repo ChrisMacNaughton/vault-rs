@@ -223,36 +223,38 @@ pub struct WrapData {
     response: String,
 }
 
-/// AppRole properties
+/// `AppRole` properties
 #[derive(RustcDecodable, Debug)]
 pub struct AppRoleProperties {
-    /// Require `secret_id` to be presented when logging in using this AppRole. Defaults to 'true'.
+    /// Require `secret_id` to be presented when logging in using this `AppRole`. Defaults to 'true'.
     pub bind_secret_id: bool,
-    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can perform the login operation.
+    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can
+    /// perform the login operation.
     pub bound_cidr_list: String,
-    /// If set, the token generated using this AppRole is a periodic token; so long as it is renewed
-    /// it never expires, but the TTL set on the token at each renewal is fixed to the value
+    /// If set, the token generated using this `AppRole` is a periodic token; so long as it is
+    /// renewed it never expires, but the TTL set on the token at each renewal is fixed to the value
     /// specified here. If this value is modified, the token will pick up the new value at its next
     /// renewal.
     pub period: VaultDuration,
-    /// List of policies set on tokens issued via this AppRole.
+    /// List of policies set on tokens issued via this `AppRole`.
     pub policies: Vec<String>,
-    /// Number of times any particular SecretID can be used to fetch a token from this AppRole, after which the SecretID will expire.
+    /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
+    /// after which the `SecretID` will expire.
     pub secret_id_num_uses: u64,
-    /// Duration after which any SecretID expires.
+    /// Duration after which any `SecretID` expires.
     pub secret_id_ttl: VaultDuration,
     /// Duration after which the issued token can no longer be renewed.
     pub token_max_ttl: VaultDuration,
 }
 
-/// Payload to send to vault when authenticating via app-id
+/// Payload to send to vault when authenticating via `AppId`
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
     app_id: String,
     user_id: String,
 }
 
-/// Payload to send to vault when authenticating via AppRole
+/// Payload to send to vault when authenticating via `AppRole`
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppRolePayload {
     role_id: String,
@@ -394,7 +396,7 @@ header! {
     (XVaultToken, "X-Vault-Token") => [String]
 }
 header! {
-    /// The TTL for the token is set by the client using the X-Vault-Wrap-TTL header and can be
+    /// The TTL for the token is set by the client using the `X-Vault-Wrap-TTL` header and can be
     /// either an integer number of seconds or a string duration of seconds (15s), minutes (20m),
     /// or hours (25h). When using the Vault CLI, you can set this via the -wrap-ttl parameter.
     /// Response wrapping is per-request; it is the presence of a value in this header that
