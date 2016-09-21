@@ -129,7 +129,7 @@ pub struct Auth {
     /// Client token id
     pub client_token: String,
     /// Accessor
-    pub accessor: String,
+    pub accessor: Option<String>,
     /// Policies
     pub policies: Vec<String>,
     /// Metadata
