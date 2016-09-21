@@ -591,7 +591,7 @@ impl<'a, T> VaultClient<'a, T>
         let body = try!(json::encode(opts));
         let mut res = try!(self.post("/v1/auth/token/create", Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
-        vault_res.auth.ok_or_else(|| Error::Vault("Created token did not include data".into()))
+        vault_res.auth.ok_or_else(|| Error::Vault("Created token did not include auth data".into()))
     }
 
     ///
