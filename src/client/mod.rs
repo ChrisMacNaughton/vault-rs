@@ -282,9 +282,25 @@ impl<'a> VaultClient<'a, ()> {
 impl<'a, T> VaultClient<'a, T>
     where T: Decodable
 {
-    /// Renew lease for `VaultClient`'s token and updates the `self.data.auth` based upon response
+    /// Renew lease for `VaultClient`'s token and updates the
+    /// `self.data.auth` based upon the response.  Corresponds to
+    /// [`/auth/token/renew-self`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// client.renew().unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew(&mut self) -> Result<()> {
-        let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));
+        let mut res = try!(self.post("/v1/auth/token/renew-self", None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
         self.data.auth = vault_res.auth;
         Ok(())
@@ -320,26 +336,75 @@ impl<'a, T> VaultClient<'a, T>
     }
 
     /// Revoke `VaultClient`'s token. This token can no longer be used.
+    /// Corresponds to [`/auth/token/revoke-self`][token].
+    ///
+    /// ```no_run
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// client.revoke().unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn revoke(&mut self) -> Result<()> {
-        let _ = try!(self.post(&format!("{}/v1/auth/token/revoke-self", self.host), None));
+        let _ = try!(self.post("/v1/auth/token/revoke-self", None));
         Ok(())
     }
 
-    /// Renew a specific lease that your token controls
-    /// https://www.vaultproject.io/docs/http/sys-renew.html
+    /// Renew a specific lease that your token controls.  Corresponds to
+    /// [`/v1/sys/renew`][renew].
+    ///
+    /// ```no_run
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// // TODO: Right now, we offer no way to get lease information for a
+    /// // secret.
+    /// let lease_id: String = unimplemented!();
+    ///
+    /// client.renew_lease(&lease_id, None).unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
         let body = try!(json::encode(&RenewOptions {
             increment: increment,
         }));
-        let mut res = try!(self.put(&format!("{}/v1/sys/renew/{}", self.host, lease_id)[..],
+        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id),
                                     Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
 
-    /// Lookup token information
+    /// Lookup token information for this client's token.  Corresponds to
+    /// [`/auth/token/lookup-self`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// let res = client.lookup().unwrap();
+    /// assert!(res.data.unwrap().policies.len() >= 0);
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn lookup(&mut self) -> Result<VaultResponse<TokenData>> {
-        let mut res = try!(self.get(&format!("{}/v1/auth/token/lookup-self", self.host), None));
+        let mut res = try!(self.get("/v1/auth/token/lookup-self", None));
         let vault_res: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
