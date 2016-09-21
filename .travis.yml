@@ -14,6 +14,15 @@ matrix:
   allow_failures:
   - rust: nightly
   - rust: beta
+  fast_finish: true
+  exclude:
+    - rust: nightly
+    - rust: beta
+  include:
+    - rust: nightly
+      env: VAULT_VERSION=0.6.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
+    - rust: beta
+      env: VAULT_VERSION=0.6.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
 env:
   matrix:
   - VAULT_VERSION=0.4.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
