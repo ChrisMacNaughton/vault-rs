@@ -480,14 +480,16 @@ impl<'a, T> VaultClient<'a, T>
     ///
     /// ```
     /// # extern crate hashicorp_vault as vault;
-    /// # use vault::Client;
+    /// # use vault::{client, Client};
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
-    /// let res = client.create_token(&Default::default()).unwrap();
+    /// let opts = client::TokenOptions::default()
+    ///   .ttl(client::VaultDuration::minutes(5));
+    /// let res = client.create_token(&opts).unwrap();
     /// let mut new_client = Client::new(host, &res.client_token).unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
@@ -568,7 +570,6 @@ impl<'a, T> VaultClient<'a, T>
     /// let client = Client::new(host, token).unwrap();
     ///
     /// let opts = client::TokenOptions::default()
-    ///   .id("test123456-test-create-token")
     ///   .display_name("test_token")
     ///   .policies(vec!("root"))
     ///   .default_policy(false)
