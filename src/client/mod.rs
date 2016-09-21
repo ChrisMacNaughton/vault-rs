@@ -205,6 +205,14 @@ struct PoliciesResponse {
     policies: Vec<String>
 }
 
+/// Options that we use when renewing leases on tokens and secrets.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct RenewOptions {
+    /// The amount of time for which to renew the lease.  May be ignored or
+    /// overriden by vault.
+    increment: Option<u64>
+}
+
 header! {
     /// Token used to authenticate with the vault API
     (XVaultToken, "X-Vault-Token") => [String]
@@ -291,12 +299,11 @@ impl<'a, T> VaultClient<'a, T>
     /// Renew a specific lease that your token controls
     /// https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
-        let body = match increment {
-            Some(_) => Some(format!("{{\"increment\": {:?}}}", increment)),
-            None => None,
-        };
+        let body = try!(json::encode(&RenewOptions {
+            increment: increment,
+        }));
         let mut res = try!(self.put(&format!("{}/v1/sys/renew/{}", self.host, lease_id)[..],
-                                    body.as_ref().map(String::as_ref)));
+                                    Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
