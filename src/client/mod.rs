@@ -129,11 +129,11 @@ pub struct Auth {
     /// Client token id
     pub client_token: String,
     /// Accessor
-    pub accessor: String,
+    pub accessor: Option<String>,
     /// Policies
     pub policies: Vec<String>,
     /// Metadata
-    pub metadata: HashMap<String, String>,
+    pub metadata: Option<HashMap<String, String>>,
     /// Lease duration
     pub lease_duration: Option<VaultDuration>,
     /// True if renewable
@@ -196,6 +196,21 @@ pub struct PostgresqlLogin {
     pub password: String,
     /// Username
     pub username: String,
+}
+
+/// Response sent by vault when listing policies.  We hide this from the
+/// caller.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct PoliciesResponse {
+    policies: Vec<String>
+}
+
+/// Options that we use when renewing leases on tokens and secrets.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct RenewOptions {
+    /// The amount of time for which to renew the lease.  May be ignored or
+    /// overriden by vault.
+    increment: Option<u64>
 }
 
 header! {
@@ -267,36 +282,129 @@ impl<'a> VaultClient<'a, ()> {
 impl<'a, T> VaultClient<'a, T>
     where T: Decodable
 {
-    /// Renew lease for `VaultClient`'s token and updates the `self.data.auth` based upon response
+    /// Renew lease for `VaultClient`'s token and updates the
+    /// `self.data.auth` based upon the response.  Corresponds to
+    /// [`/auth/token/renew-self`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// client.renew().unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew(&mut self) -> Result<()> {
-        let mut res = try!(self.post(&format!("{}/v1/auth/token/renew-self", self.host), None));
+        let mut res = try!(self.post("/v1/auth/token/renew-self", None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
         self.data.auth = vault_res.auth;
         Ok(())
     }
 
+    /// Renew the lease for the specified token.  Requires `root`
+    /// privileges.  Corresponds to [`/auth/token/renew[/token]`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// let token_to_renew = "test12345";
+    /// client.renew_token(token_to_renew, None).unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
+    pub fn renew_token(&self, token: &str, increment: Option<u64>) -> Result<Auth> {
+        let body = try!(json::encode(&RenewOptions {
+            increment: increment,
+        }));
+        let url = format!("/v1/auth/token/renew/{}", token);
+        let mut res = try!(self.post(&url, Some(&body)));
+        let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        vault_res.auth.ok_or_else(|| {
+            Error::Vault("No auth data returned while renewing token".to_owned())
+        })
+    }
+
     /// Revoke `VaultClient`'s token. This token can no longer be used.
+    /// Corresponds to [`/auth/token/revoke-self`][token].
+    ///
+    /// ```no_run
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// client.revoke().unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn revoke(&mut self) -> Result<()> {
-        let _ = try!(self.post(&format!("{}/v1/auth/token/revoke-self", self.host), None));
+        let _ = try!(self.post("/v1/auth/token/revoke-self", None));
         Ok(())
     }
 
-    /// Renew a specific lease that your token controls
-    /// https://www.vaultproject.io/docs/http/sys-renew.html
+    /// Renew a specific lease that your token controls.  Corresponds to
+    /// [`/v1/sys/renew`][renew].
+    ///
+    /// ```no_run
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// // TODO: Right now, we offer no way to get lease information for a
+    /// // secret.
+    /// let lease_id: String = unimplemented!();
+    ///
+    /// client.renew_lease(&lease_id, None).unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
-        let body = match increment {
-            Some(_) => Some(format!("{{\"increment\": {:?}}}", increment)),
-            None => None,
-        };
-        let mut res = try!(self.put(&format!("{}/v1/sys/renew/{}", self.host, lease_id)[..],
-                                    body.as_ref().map(String::as_ref)));
+        let body = try!(json::encode(&RenewOptions {
+            increment: increment,
+        }));
+        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id),
+                                    Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
 
-    /// Lookup token information
+    /// Lookup token information for this client's token.  Corresponds to
+    /// [`/auth/token/lookup-self`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// let res = client.lookup().unwrap();
+    /// assert!(res.data.unwrap().policies.len() >= 0);
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn lookup(&mut self) -> Result<VaultResponse<TokenData>> {
-        let mut res = try!(self.get(&format!("{}/v1/auth/token/lookup-self", self.host), None));
+        let mut res = try!(self.get("/v1/auth/token/lookup-self", None));
         let vault_res: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
@@ -396,6 +504,29 @@ impl<'a, T> VaultClient<'a, T>
         Ok(decoded)
     }
 
+    /// Get a list of policy names defined by this vault.  This requires
+    /// `root` privileges. Corresponds to [`/sys/policy`][/sys/policy].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// let res = client.policies().unwrap();
+    /// assert!(res.contains(&"root".to_owned()));
+    /// # }
+    /// ```
+    ///
+    /// [/sys/policy]: https://www.vaultproject.io/docs/http/sys-policy.html
+    pub fn policies(&self) -> Result<Vec<String>> {
+        let mut res = try!(self.get("/v1/sys/policy", None));
+        let decoded: PoliciesResponse = try!(parse_vault_response(&mut res));
+        Ok(decoded.policies)
+    }
+
     fn get(&self, endpoint: &str, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .get(&format!("{}{}", self.host, endpoint)[..])
@@ -461,12 +592,12 @@ fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> 
     }
 }
 
-fn parse_vault_response<T>(res: &mut Response) -> Result<VaultResponse<T>>
+fn parse_vault_response<T>(res: &mut Response) -> Result<T>
     where T: Decodable
 {
     let mut body = String::new();
     let _ = try!(res.read_to_string(&mut body));
     println!("Response: {:?}", &body);
-    let vault_res: VaultResponse<T> = try!(json::decode(&body));
+    let vault_res: T = try!(json::decode(&body));
     Ok(vault_res)
 }
