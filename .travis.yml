@@ -33,7 +33,7 @@ notifications:
     on_success: never
 before_script:
 - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-- VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345"
+- VAULT_ADDR=http://127.0.0.1:8200 vault token-create -id="test12345" -ttl="720h"
 install:
 - bin/install-vault-${VAULT_BRANCH}.sh
 - export PATH=$HOME/bin:$PATH
