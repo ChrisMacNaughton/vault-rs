@@ -35,17 +35,17 @@ impl VaultDuration {
 
     /// Construct a duration from some number of minutes.
     pub fn minutes(m: u64) -> VaultDuration {
-        VaultDuration::seconds(m*60)
+        VaultDuration::seconds(m * 60)
     }
 
     /// Construct a duration from some number of hours.
     pub fn hours(h: u64) -> VaultDuration {
-        VaultDuration::minutes(h*60)
+        VaultDuration::minutes(h * 60)
     }
 
     /// Construct a duration from some number of days.
     pub fn days(d: u64) -> VaultDuration {
-        VaultDuration::hours(d*24)
+        VaultDuration::hours(d * 24)
     }
 }
 
@@ -303,7 +303,7 @@ impl TokenOptions {
     /// vault.
     pub fn policies<'a, I>(mut self, policies: I) -> Self
         where I: IntoIterator,
-              I::Item: Into<String>,
+              I::Item: Into<String>
     {
         self.policies = Some(policies.into_iter().map(|p| p.into()).collect());
         self
@@ -591,9 +591,7 @@ impl<'a, T> VaultClient<'a, T>
         let body = try!(json::encode(opts));
         let mut res = try!(self.post("/v1/auth/token/create", Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
-        vault_res.auth.ok_or_else(|| {
-            Error::Vault("Created token did not include data".into())
-        })
+        vault_res.auth.ok_or_else(|| Error::Vault("Created token did not include data".into()))
     }
 
     ///
