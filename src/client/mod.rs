@@ -202,7 +202,7 @@ pub struct PostgresqlLogin {
 /// caller.
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct PoliciesResponse {
-    policies: Vec<String>
+    policies: Vec<String>,
 }
 
 /// Options that we use when renewing leases on tokens and secrets.
@@ -210,7 +210,7 @@ struct PoliciesResponse {
 struct RenewOptions {
     /// The amount of time for which to renew the lease.  May be ignored or
     /// overriden by vault.
-    increment: Option<u64>
+    increment: Option<u64>,
 }
 
 header! {
@@ -324,15 +324,12 @@ impl<'a, T> VaultClient<'a, T>
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew_token(&self, token: &str, increment: Option<u64>) -> Result<Auth> {
-        let body = try!(json::encode(&RenewOptions {
-            increment: increment,
-        }));
+        let body = try!(json::encode(&RenewOptions { increment: increment }));
         let url = format!("/v1/auth/token/renew/{}", token);
         let mut res = try!(self.post(&url, Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
-        vault_res.auth.ok_or_else(|| {
-            Error::Vault("No auth data returned while renewing token".to_owned())
-        })
+        vault_res.auth
+            .ok_or_else(|| Error::Vault("No auth data returned while renewing token".to_owned()))
     }
 
     /// Revoke `VaultClient`'s token. This token can no longer be used.
@@ -377,11 +374,8 @@ impl<'a, T> VaultClient<'a, T>
     ///
     /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
-        let body = try!(json::encode(&RenewOptions {
-            increment: increment,
-        }));
-        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id),
-                                    Some(&body)));
+        let body = try!(json::encode(&RenewOptions { increment: increment }));
+        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id), Some(&body)));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
