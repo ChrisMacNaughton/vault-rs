@@ -133,7 +133,7 @@ pub struct Auth {
     /// Policies
     pub policies: Vec<String>,
     /// Metadata
-    pub metadata: HashMap<String, String>,
+    pub metadata: Option<HashMap<String, String>>,
     /// Lease duration
     pub lease_duration: Option<VaultDuration>,
     /// True if renewable
