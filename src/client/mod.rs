@@ -290,6 +290,35 @@ impl<'a, T> VaultClient<'a, T>
         Ok(())
     }
 
+    /// Renew the lease for the specified token.  Requires `root`
+    /// privileges.  Corresponds to [`/auth/token/renew[/token]`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// let token_to_renew = "test12345";
+    /// client.renew_token(token_to_renew, None).unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
+    pub fn renew_token(&self, token: &str, increment: Option<u64>) -> Result<Auth> {
+        let body = try!(json::encode(&RenewOptions {
+            increment: increment,
+        }));
+        let url = format!("/v1/auth/token/renew/{}", token);
+        let mut res = try!(self.post(&url, Some(&body)));
+        let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        vault_res.auth.ok_or_else(|| {
+            Error::Vault("No auth data returned while renewing token".to_owned())
+        })
+    }
+
     /// Revoke `VaultClient`'s token. This token can no longer be used.
     pub fn revoke(&mut self) -> Result<()> {
         let _ = try!(self.post(&format!("{}/v1/auth/token/revoke-self", self.host), None));

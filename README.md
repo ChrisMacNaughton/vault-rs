@@ -15,7 +15,7 @@ test token:
 ```bash
 export VAULT_ADDR=http://localhost:8200
 export VAULT_TOKEN=<root token from server startup>
-vault token-create -id="test12345"
+vault token-create -id="test12345" -ttl="720h"
 ```
 
 ## High Availability
