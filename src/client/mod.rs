@@ -198,6 +198,13 @@ pub struct PostgresqlLogin {
     pub username: String,
 }
 
+/// Response sent by vault when listing policies.  We hide this from the
+/// caller.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct PoliciesResponse {
+    policies: Vec<String>
+}
+
 header! {
     /// Token used to authenticate with the vault API
     (XVaultToken, "X-Vault-Token") => [String]
@@ -396,6 +403,29 @@ impl<'a, T> VaultClient<'a, T>
         Ok(decoded)
     }
 
+    /// Get a list of policy names defined by this vault.  This requires
+    /// `root` privileges. Corresponds to [`/sys/policy`][/sys/policy].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// let res = client.policies().unwrap();
+    /// assert!(res.contains(&"root".to_owned()));
+    /// # }
+    /// ```
+    ///
+    /// [/sys/policy]: https://www.vaultproject.io/docs/http/sys-policy.html
+    pub fn policies(&self) -> Result<Vec<String>> {
+        let mut res = try!(self.get("/v1/sys/policy", None));
+        let decoded: PoliciesResponse = try!(parse_vault_response(&mut res));
+        Ok(decoded.policies)
+    }
+
     fn get(&self, endpoint: &str, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .get(&format!("{}{}", self.host, endpoint)[..])
@@ -461,12 +491,12 @@ fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> 
     }
 }
 
-fn parse_vault_response<T>(res: &mut Response) -> Result<VaultResponse<T>>
+fn parse_vault_response<T>(res: &mut Response) -> Result<T>
     where T: Decodable
 {
     let mut body = String::new();
     let _ = try!(res.read_to_string(&mut body));
     println!("Response: {:?}", &body);
-    let vault_res: VaultResponse<T> = try!(json::decode(&body));
+    let vault_res: T = try!(json::decode(&body));
     Ok(vault_res)
 }
