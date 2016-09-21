@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::io::Read;
+use std::result;
 
 use hyper::{self, header, Client};
 use hyper::client::response::Response;
-use rustc_serialize::{json, Decodable, Decoder};
+use rustc_serialize::{json, Decodable, Decoder, Encodable, Encoder};
 
 use client::error::{Error, Result};
 
@@ -13,16 +14,52 @@ use chrono::{DateTime, FixedOffset, NaiveDateTime};
 /// Errors
 pub mod error;
 
-/// Lease duration
+/// Lease duration.
 ///
-/// Note: value returned from vault api is assumed to be in seconds
-#[derive(Debug)]
+/// Note: Value returned from vault api is assumed to be in seconds.
+///
+/// ```
+/// use hashicorp_vault::client::VaultDuration;
+///
+/// assert_eq!(VaultDuration::days(1),
+///            VaultDuration(std::time::Duration::from_secs(86400)));
+/// ```
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VaultDuration(pub Duration);
+
+impl VaultDuration {
+    /// Construct a duration from some number of seconds.
+    pub fn seconds(s: u64) -> VaultDuration {
+        VaultDuration(Duration::from_secs(s))
+    }
+
+    /// Construct a duration from some number of minutes.
+    pub fn minutes(m: u64) -> VaultDuration {
+        VaultDuration::seconds(m*60)
+    }
+
+    /// Construct a duration from some number of hours.
+    pub fn hours(h: u64) -> VaultDuration {
+        VaultDuration::minutes(h*60)
+    }
+
+    /// Construct a duration from some number of days.
+    pub fn days(d: u64) -> VaultDuration {
+        VaultDuration::hours(d*24)
+    }
+}
+
 
 impl Decodable for VaultDuration {
     fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<VaultDuration, D::Error> {
         let num = try!(d.read_u64());
         Ok(VaultDuration(Duration::from_secs(num)))
+    }
+}
+
+impl Encodable for VaultDuration {
+    fn encode<S: Encoder>(&self, s: &mut S) -> result::Result<(), S::Error> {
+        s.emit_u64(self.0.as_secs())
     }
 }
 
@@ -213,6 +250,112 @@ struct RenewOptions {
     increment: Option<u64>,
 }
 
+/// Options for creating a token.  This is intended to be used as a
+/// "builder"-style interface, where you create a new `TokenOptions`
+/// object, call a bunch of chained methods on it, and then pass the result
+/// to `Client::create_token`.
+///
+/// ```
+/// use hashicorp_vault::client::{TokenOptions, VaultDuration};
+///
+/// let _ = TokenOptions::default()
+///   .id("test12345")
+///   .policies(vec!("root"))
+///   .default_policy(false)
+///   .orphan(true)
+///   .renewable(false)
+///   .display_name("jdoe-temp")
+///   .number_of_uses(10)
+///   .ttl(VaultDuration::hours(3))
+///   .explicit_max_ttl(VaultDuration::hours(13));
+/// ```
+///
+/// If an option is not specified, it will be set accordinding to [Vault's
+/// standard defaults for newly-created tokens][token].
+///
+/// [token]: https://www.vaultproject.io/docs/auth/token.html
+#[derive(Default, RustcEncodable, Debug)]
+pub struct TokenOptions {
+    id: Option<String>,
+    policies: Option<Vec<String>>,
+    // TODO: `meta`
+    no_parent: Option<bool>,
+    no_default_policy: Option<bool>,
+    renewable: Option<bool>,
+    ttl: Option<String>,
+    explicit_max_ttl: Option<String>,
+    display_name: Option<String>,
+    num_uses: Option<u64>,
+}
+
+impl TokenOptions {
+    /// Set the `id` of the created token to the specified value.  **This
+    /// may make it easy for attackers to guess your token.** Typically,
+    /// this is used for testing and similar purposes.
+    pub fn id<S: Into<String>>(mut self, id: S) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Supply a list of policies that will be used to grant permissions to
+    /// the created token.  Unless you also call `default_policy(false)`, the
+    /// policy `default` will be added to this list in modern versions of
+    /// vault.
+    pub fn policies<'a, I>(mut self, policies: I) -> Self
+        where I: IntoIterator,
+              I::Item: Into<String>,
+    {
+        self.policies = Some(policies.into_iter().map(|p| p.into()).collect());
+        self
+    }
+
+    /// Should we grant access to the `default` policy?  Defaults to true.
+    pub fn default_policy(mut self, enable: bool) -> Self {
+        self.no_default_policy = Some(!enable);
+        self
+    }
+
+    /// Should this token be an "orphan", allowing it to survive even when
+    /// the token that created it expires or is revoked?
+    pub fn orphan(mut self, orphan: bool) -> Self {
+        self.no_parent = Some(!orphan);
+        self
+    }
+
+    /// Should the token be renewable?
+    pub fn renewable(mut self, renewable: bool) -> Self {
+        self.renewable = Some(renewable);
+        self
+    }
+
+    /// For various logging purposes, what should this token be called?
+    pub fn display_name<S>(mut self, name: S) -> Self
+        where S: Into<String>
+    {
+        self.display_name = Some(name.into());
+        self
+    }
+
+    /// How many times can this token be used before it stops working?
+    pub fn number_of_uses(mut self, uses: u64) -> Self {
+        self.num_uses = Some(uses);
+        self
+    }
+
+    /// How long should this token remain valid for?
+    pub fn ttl<D: Into<VaultDuration>>(mut self, ttl: D) -> Self {
+        self.ttl = Some(format!("{}s", ttl.into().0.as_secs()));
+        self
+    }
+
+    /// How long should this token remain valid for, even if it is renewed
+    /// repeatedly?
+    pub fn explicit_max_ttl<D: Into<VaultDuration>>(mut self, ttl: D) -> Self {
+        self.explicit_max_ttl = Some(format!("{}s", ttl.into().0.as_secs()));
+        self
+    }
+}
+
 header! {
     /// Token used to authenticate with the vault API
     (XVaultToken, "X-Vault-Token") => [String]
@@ -335,7 +478,7 @@ impl<'a, T> VaultClient<'a, T>
     /// Revoke `VaultClient`'s token. This token can no longer be used.
     /// Corresponds to [`/auth/token/revoke-self`][token].
     ///
-    /// ```no_run
+    /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
     /// # fn main() {
@@ -343,7 +486,14 @@ impl<'a, T> VaultClient<'a, T>
     /// let token = "test12345";
     /// let mut client = Client::new(host, token).unwrap();
     ///
-    /// client.revoke().unwrap();
+    /// // Create a temporary token, and use it to create a new client.
+    /// let res = client.create_token(&Default::default()).unwrap();
+    /// let mut new_client = Client::new(host, &res.client_token).unwrap();
+    ///
+    /// // Issue and use a bunch of temporary dynamic credentials.
+    ///
+    /// // Revoke all our dynamic credentials with a single command.
+    /// new_client.revoke().unwrap();
     /// # }
     /// ```
     ///
@@ -401,6 +551,45 @@ impl<'a, T> VaultClient<'a, T>
         let mut res = try!(self.get("/v1/auth/token/lookup-self", None));
         let vault_res: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
+    }
+
+    /// Create a new vault token using the specified options.  Corresponds to
+    /// [`/auth/token/create`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::{client, Client};
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    ///
+    /// let opts = client::TokenOptions::default()
+    ///   .id("test123456-test-create-token")
+    ///   .display_name("test_token")
+    ///   .policies(vec!("root"))
+    ///   .default_policy(false)
+    ///   .orphan(true)
+    ///   .renewable(false)
+    ///   .display_name("jdoe-temp")
+    ///   .number_of_uses(10)
+    ///   .ttl(client::VaultDuration::minutes(1))
+    ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
+    /// let res = client.create_token(&opts).unwrap();
+    ///
+    /// # let mut new_client = Client::new(host, &res.client_token).unwrap();
+    /// # new_client.revoke().unwrap();
+    /// # }
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
+    pub fn create_token(&self, opts: &TokenOptions) -> Result<Auth> {
+        let body = try!(json::encode(opts));
+        let mut res = try!(self.post("/v1/auth/token/create", Some(&body)));
+        let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        vault_res.auth.ok_or_else(|| {
+            Error::Vault("Created token did not include data".into())
+        })
     }
 
     ///
