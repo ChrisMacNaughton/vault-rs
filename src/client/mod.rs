@@ -577,9 +577,6 @@ fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> 
             error_msg.push_str("Could not read vault response.");
             0
         });
-        println!("Vault request failed: {:?}, error message: `{}`",
-                 res,
-                 error_msg);
         Err(Error::Vault(format!("Vault request failed: {:?}, error message: `{}`",
                                  res,
                                  error_msg)))
@@ -591,7 +588,7 @@ fn parse_vault_response<T>(res: &mut Response) -> Result<T>
 {
     let mut body = String::new();
     let _ = try!(res.read_to_string(&mut body));
-    println!("Response: {:?}", &body);
+    trace!("Response: {:?}", &body);
     let vault_res: T = try!(json::decode(&body));
     Ok(vault_res)
 }

@@ -46,7 +46,6 @@ mod tests {
         let host = "http://127.0.0.1:8200";
         let token = "test12345";
         let client = Client::new(host, token).unwrap();
-        println!("Created client!");
         let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
