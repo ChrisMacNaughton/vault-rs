@@ -301,7 +301,7 @@ impl TokenOptions {
     /// the created token.  Unless you also call `default_policy(false)`, the
     /// policy `default` will be added to this list in modern versions of
     /// vault.
-    pub fn policies<'a, I>(mut self, policies: I) -> Self
+    pub fn policies<I>(mut self, policies: I) -> Self
         where I: IntoIterator,
               I::Item: Into<String>
     {
