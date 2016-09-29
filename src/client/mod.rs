@@ -259,7 +259,7 @@ struct RenewOptions {
 /// use hashicorp_vault::client::{TokenOptions, VaultDuration};
 ///
 /// let _ = TokenOptions::default()
-///   .id("test12345")
+///   .id("some_token")
 ///   .policies(vec!("root"))
 ///   .default_policy(false)
 ///   .orphan(true)
@@ -457,10 +457,10 @@ impl<'a, T> VaultClient<'a, T>
     /// # use vault::Client;
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
-    /// let token = "test12345";
+    /// let token = "token12345";
     /// let client = Client::new(host, token).unwrap();
     ///
-    /// let token_to_renew = "test12345";
+    /// let token_to_renew = "fresh_token";
     /// client.renew_token(token_to_renew, None).unwrap();
     /// # }
     /// ```
@@ -481,9 +481,10 @@ impl<'a, T> VaultClient<'a, T>
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::{client, Client};
+    /// # use std::env;
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
-    /// let token = "test12345";
+    /// let token = &env::var("VAULT_TOKEN").unwrap(); // We need root token here
     /// let client = Client::new(host, token).unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
@@ -564,10 +565,11 @@ impl<'a, T> VaultClient<'a, T>
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::{client, Client};
+    /// # use std::env;
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
-    /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let token = env::var("VAULT_TOKEN").unwrap(); // Must be root token, so we take it from env
+    /// let client = Client::new(host, &token).unwrap();
     ///
     /// let opts = client::TokenOptions::default()
     ///   .display_name("test_token")
@@ -604,12 +606,12 @@ impl<'a, T> VaultClient<'a, T>
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello_set", "world");
+    /// let res = client.set_secret("secret/hello_set", "world");
     /// assert!(res.is_ok());
     /// # }
     /// ```
     pub fn set_secret(&self, key: &str, value: &str) -> Result<()> {
-        let _ = try!(self.post(&format!("/v1/secret/{}", key)[..],
+        let _ = try!(self.post(&format!("/v1/{}", key)[..],
                                Some(&format!("{{\"value\": \"{}\"}}", self.escape(value))[..])));
         Ok(())
     }
@@ -628,15 +630,15 @@ impl<'a, T> VaultClient<'a, T>
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello_get", "world");
+    /// let res = client.set_secret("secret/hello_get", "world");
     /// assert!(res.is_ok());
-    /// let res = client.get_secret("hello_get");
+    /// let res = client.get_secret("secret/hello_get");
     /// assert!(res.is_ok());
     /// assert_eq!(res.unwrap(), "world");
     /// # }
     /// ```
     pub fn get_secret(&self, key: &str) -> Result<String> {
-        let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], None));
+        let mut res = try!(self.get(&format!("/v1/{}", key)[..], None));
         let decoded: VaultResponse<SecretData> = try!(parse_vault_response(&mut res));
         match decoded.data {
             Some(data) => Ok(data.value),
@@ -647,7 +649,7 @@ impl<'a, T> VaultClient<'a, T>
     /// Fetch a wrapped secret. Token (one-time use) to fetch secret will be in `wrap_info.token`
     /// https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
     pub fn get_secret_wrapped(&self, key: &str, wrap_ttl: &str) -> Result<VaultResponse<()>> {
-        let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], Some(wrap_ttl)));
+        let mut res = try!(self.get(&format!("/v1/{}", key)[..], Some(wrap_ttl)));
         Ok(try!(parse_vault_response(&mut res)))
     }
 
@@ -670,21 +672,21 @@ impl<'a, T> VaultClient<'a, T>
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
-    /// let res = client.set_secret("hello_delete", "world");
+    /// let res = client.set_secret("secret/hello_delete", "world");
     /// assert!(res.is_ok());
-    /// let res = client.delete_secret("hello_delete");
+    /// let res = client.delete_secret("secret/hello_delete");
     /// assert!(res.is_ok());
     /// # }
     /// ```
     pub fn delete_secret(&self, key: &str) -> Result<()> {
-        let _ = try!(self.delete(&format!("/v1/secret/{}", key)[..]));
+        let _ = try!(self.delete(&format!("/v1/{}", key)[..]));
         Ok(())
     }
 
     /// Get postgresql secret backend
     /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
     pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlLogin>> {
-        let mut res = try!(self.get(&format!("/v1/postgresql/creds/{}", name)[..], None));
+        let mut res = try!(self.get(&format!("/v1/{}", name)[..], None));
         let decoded: VaultResponse<PostgresqlLogin> = try!(parse_vault_response(&mut res));
         Ok(decoded)
     }
