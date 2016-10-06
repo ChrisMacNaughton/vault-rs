@@ -817,6 +817,26 @@ impl<T> VaultClient<T>
         }
     }
 
+    /// Accesses a given endpoint using the provided `wrap_ttl` and returns a one-time use
+    /// `wrapping_token` to access the response provided by the endpoint.
+    pub fn get_wrapping_token_for_endpoint(&self,
+                                           http_verb: HttpVerb,
+                                           endpoint: &str,
+                                           wrap_ttl: &str,
+                                           body: Option<&str>)
+                                           -> Result<String> {
+        let res = try!(self.call_endpoint::<()>(http_verb, endpoint, Some(wrap_ttl), body));
+        match res {
+            EndpointResponse::VaultResponse(res) => {
+                match res.wrap_info {
+                    Some(wrap_info) => Ok(wrap_info.token),
+                    _ => Err(Error::Vault(format!("wrap_info is missing in response: {:?}", res))),
+                }
+            }
+            EndpointResponse::Empty => Err(Error::Vault("Received an empty response".to_string())),
+        }
+    }
+
     ///
     /// Deletes a saved secret
     ///
