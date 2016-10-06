@@ -1,4 +1,3 @@
-
 #![deny(missing_docs,
         missing_debug_implementations,
         trivial_casts,
@@ -222,6 +221,4 @@ mod tests {
             _ => panic!("expected empty response, received: {:?}", res),
         }
     }
-
-
 }
