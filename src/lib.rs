@@ -172,7 +172,7 @@ mod tests {
 
         // get approle's role-id
         let res: EndpointResponse<HashMap<String, String>> =
-            c.call_endpoint(GET, "auth/approle/role/test_role/role-id", None, Some(body))
+            c.call_endpoint(GET, "auth/approle/role/test_role/role-id", None, None)
                 .unwrap();
         let data = match res {
             EndpointResponse::VaultResponse(res) => res.data.unwrap(),
@@ -182,11 +182,9 @@ mod tests {
         assert!(role_id.len() > 0);
 
         // now get a secret id for this approle
-        let res: EndpointResponse<HashMap<String, String>> = c.call_endpoint(POST,
-                           "auth/approle/role/test_role/secret-id",
-                           None,
-                           Some(body))
-            .unwrap();
+        let res: EndpointResponse<HashMap<String, String>> =
+            c.call_endpoint(POST, "auth/approle/role/test_role/secret-id", None, None)
+                .unwrap();
         let data = match res {
             EndpointResponse::VaultResponse(res) => res.data.unwrap(),
             _ => panic!("expected vault response, got: {:?}", res),
