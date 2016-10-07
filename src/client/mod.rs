@@ -521,7 +521,7 @@ impl VaultClient<()> {
     }
 
     /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
-    /// provided token is a one use token.
+    /// provided token is a single-use token.
     ///
     /// A common use case for this method is when a `wrapping_token` has been received and you want
     /// to query the `sys/wrapping/unwrap` endpoint.
@@ -820,7 +820,7 @@ impl<T> VaultClient<T>
         }
     }
 
-    /// Accesses a given endpoint using the provided `wrap_ttl` and returns a one-time use
+    /// Accesses a given endpoint using the provided `wrap_ttl` and returns a single-use
     /// `wrapping_token` to access the response provided by the endpoint.
     pub fn get_wrapping_token_for_endpoint(&self,
                                            http_verb: HttpVerb,
