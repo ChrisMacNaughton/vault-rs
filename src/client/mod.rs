@@ -305,7 +305,7 @@ struct RenewOptions {
 ///   .explicit_max_ttl(VaultDuration::hours(13));
 /// ```
 ///
-/// If an option is not specified, it will be set accordinding to [Vault's
+/// If an option is not specified, it will be set according to [Vault's
 /// standard defaults for newly-created tokens][token].
 ///
 /// [token]: https://www.vaultproject.io/docs/auth/token.html
