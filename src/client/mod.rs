@@ -976,7 +976,7 @@ fn parse_endpoint_response<T>(res: &mut Response) -> Result<EndpointResponse<T>>
 {
     let mut body = String::new();
     let _ = try!(res.read_to_string(&mut body));
-    println!("Response: {:?}", &body);
+    trace!("Response: {:?}", &body);
     if body.is_empty() {
         Ok(EndpointResponse::Empty)
     } else {
