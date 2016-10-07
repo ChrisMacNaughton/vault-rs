@@ -204,13 +204,13 @@ mod tests {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
         assert!(res.is_ok());
-        // wrap the secret's value in cubbyhole/response with a TTL of 2 minutes
+        // wrap the secret's value in `sys/wrapping/unwrap` with a TTL of 2 minutes
         let res = client.get_secret_wrapped("hello_delete_2", "2m").unwrap();
         let wrapping_token = res.wrap_info.unwrap().token;
         // make a new client with the wrapping token
         let c2 = Client::new_no_lookup(HOST, &wrapping_token).unwrap();
         // read the cubbyhole response (can only do this once!)
-        let res = c2.get_cubbyhole_response().unwrap();
+        let res = c2.get_unwrapped_response().unwrap();
         assert_eq!(res.data.unwrap().get("value").unwrap(), "second world");
     }
 

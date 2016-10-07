@@ -522,7 +522,7 @@ impl VaultClient<()> {
     /// provided token is a one use token.
     ///
     /// A common use case for this method is when a `wrapping_token` has been received and you want
-    /// to query the `cubbyhole/response` endpoint.
+    /// to query the `sys/wrapping/unwrap` endpoint.
     pub fn new_no_lookup(host: &'a str, token: &'a str) -> Result<VaultClient<'a, ()>> {
         let client = Client::new();
         Ok(VaultClient {
@@ -766,13 +766,14 @@ impl<T> VaultClient<T>
         parse_vault_response(&mut res)
     }
 
-    /// Fetch wrapped response from `cubbyhole/response`
+    /// Using a vault client created from a wrapping token, fetch the unwrapped `VaultResponse` from
+    /// `sys/wrapping/unwrap`.
     ///
-    /// The original response (in the `response` key) is what is returned
-    pub fn get_cubbyhole_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
-        let mut res = try!(self.get("/v1/cubbyhole/response", None));
-        let decoded: VaultResponse<WrapData> = try!(parse_vault_response(&mut res));
-        Ok(try!(json::decode(&decoded.data.unwrap().response[..])))
+    /// The `data` attribute of `VaultResponse` should contain the unwrapped information, which is
+    /// returned as a `HashMap<String, String>`.
+    pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
+        let mut res = try!(self.post("/v1/sys/wrapping/unwrap", None, None));
+        parse_vault_response(&mut res)
     }
 
     /// Reads the properties of an existing `AppRole`.

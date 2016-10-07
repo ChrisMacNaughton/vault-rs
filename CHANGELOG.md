@@ -13,3 +13,6 @@ BREAKING CHANGES
  constructing a `VaultClient` makes a call to the `auth/token/lookup-self` endpoint to populate
  additional information about the token. However, for limited use tokens, you will not want to
  perform this lookup. As a result, the `VaultClient.data` has now been made an `Option`.
+ - `cubbyhole/response` endpoint is deprecated in vault 0.6.2 and has been replaced by
+ `sys/wrapping/unwrap`. The function `get_cubbyhole_response()` has been renamed to
+ `get_unwrapped_response()`. More details: https://github.com/hashicorp/vault/pull/1927.
