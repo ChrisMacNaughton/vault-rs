@@ -454,6 +454,8 @@ impl VaultClient<TokenData> {
 impl VaultClient<()> {
     /// Construct a `VaultClient` via the `App ID`
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
+    ///
+    /// NOTE: This backend is now deprecated by vault.
     pub fn new_app_id<U>(host: U, app_id: &str, user_id: &str) -> Result<VaultClient<()>>
         where U: TryInto<Url, Err = Error>
     {
