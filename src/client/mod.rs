@@ -10,6 +10,8 @@ use client::error::{Error, Result};
 
 use std::time::Duration;
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
+use url::Url;
+use TryInto;
 
 /// Errors
 pub mod error;
@@ -106,11 +108,11 @@ impl Decodable for VaultDateTime {
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
-pub struct VaultClient<'a, T>
+pub struct VaultClient<T>
     where T: Decodable
 {
     /// URL to vault instance
-    pub host: &'a str,
+    pub host: Url,
     /// Token to access vault
     pub token: String,
     /// `hyper::Client`
@@ -371,12 +373,15 @@ header! {
     (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
 }
 
-impl<'a> VaultClient<'a, TokenData> {
+impl VaultClient<TokenData> {
     /// Construct a `VaultClient` from an existing vault token
-    pub fn new(host: &'a str, token: &'a str) -> Result<VaultClient<'a, TokenData>> {
+    pub fn new<U>(host: U, token: &str) -> Result<VaultClient<TokenData>>
+        where U: TryInto<Url, Err = Error>
+    {
+        let host = try!(host.try_into());
         let client = Client::new();
         let mut res = try!(
-            handle_hyper_response(client.get(&format!("{}/v1/auth/token/lookup-self", host)[..])
+            handle_hyper_response(client.get(try!(host.join("/v1/auth/token/lookup-self")))
                                   .header(XVaultToken(token.to_string()))
                                   .send()));
         let decoded: VaultResponse<TokenData> = try!(parse_vault_response(&mut res));
@@ -389,20 +394,20 @@ impl<'a> VaultClient<'a, TokenData> {
     }
 }
 
-impl<'a> VaultClient<'a, ()> {
+impl VaultClient<()> {
     /// Construct a `VaultClient` via the `App ID`
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
-    pub fn new_app_id(host: &'a str,
-                      app_id: &'a str,
-                      user_id: &'a str)
-                      -> Result<VaultClient<'a, ()>> {
+    pub fn new_app_id<U>(host: U, app_id: &str, user_id: &str) -> Result<VaultClient<()>>
+        where U: TryInto<Url, Err = Error>
+    {
+        let host = try!(host.try_into());
         let client = Client::new();
         let payload = try!(json::encode(&AppIdPayload {
             app_id: app_id.to_string(),
             user_id: user_id.to_string(),
         }));
         let mut res =
-            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/app-id/login", host)[..])
+            try!(handle_hyper_response(client.post(try!(host.join("/v1/auth/app-id/login")))
                 .body(&payload)
                 .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
@@ -422,7 +427,7 @@ impl<'a> VaultClient<'a, ()> {
     }
 }
 
-impl<'a, T> VaultClient<'a, T>
+impl<T> VaultClient<T>
     where T: Decodable
 {
     /// Renew lease for `VaultClient`'s token and updates the
@@ -714,7 +719,7 @@ impl<'a, T> VaultClient<'a, T>
 
     fn get(&self, endpoint: &str, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
-            .get(&format!("{}{}", self.host, endpoint)[..])
+            .get(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if wrap_ttl.is_some() {
@@ -726,7 +731,7 @@ impl<'a, T> VaultClient<'a, T>
 
     fn delete(&self, endpoint: &str) -> Result<Response> {
         Ok(try!(handle_hyper_response(self.client
-            .delete(&format!("{}{}", self.host, endpoint)[..])
+            .delete(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .send())))
@@ -734,7 +739,7 @@ impl<'a, T> VaultClient<'a, T>
 
     fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
         let mut req = self.client
-            .post(&format!("{}{}", self.host, endpoint)[..])
+            .post(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if let Some(body) = body {
@@ -746,7 +751,7 @@ impl<'a, T> VaultClient<'a, T>
 
     fn put(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
         let mut req = self.client
-            .put(&format!("{}{}", self.host, endpoint)[..])
+            .put(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if body.is_some() {

@@ -1,5 +1,4 @@
-use hyper;
-use rustc_serialize;
+use {hyper, rustc_serialize, url};
 
 /// `Result` type-alias
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -39,6 +38,13 @@ quick_error! {
             from()
             description("io error")
             display("io error: {}", err)
+            cause(err)
+        }
+        /// `Url` parsing error
+        Url(err: url::ParseError) {
+            from()
+            description("url parse error")
+            display("url parse error: {}", err)
             cause(err)
         }
     }
