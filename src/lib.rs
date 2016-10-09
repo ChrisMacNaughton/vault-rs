@@ -264,6 +264,29 @@ mod tests {
         panic_non_empty(res);
     }
 
+    #[test]
+    fn it_can_list_things() {
+        let c = Client::new(HOST, TOKEN).unwrap();
+        let _ =
+            c.create_token(&client::TokenOptions::default()
+                    .ttl(client::VaultDuration::minutes(1)))
+                .unwrap();
+        let _ =
+            c.create_token(&client::TokenOptions::default()
+                    .ttl(client::VaultDuration::minutes(1)))
+                .unwrap();
+        let res: EndpointResponse<client::ListResponse> =
+            c.call_endpoint(LIST, "auth/token/accessors", None, None)
+                .unwrap();
+        match res {
+            EndpointResponse::VaultResponse(res) => {
+                let data = res.data.unwrap();
+                assert!(data.keys.len() > 2);
+            }
+            _ => panic!("expected vault response, got: {:?}", res),
+        }
+    }
+
     // helper fn to panic on empty responses
     fn panic_non_empty(res: EndpointResponse<()>) {
         match res {

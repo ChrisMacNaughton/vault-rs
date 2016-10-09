@@ -277,6 +277,13 @@ struct PoliciesResponse {
     policies: Vec<String>,
 }
 
+/// Response sent by vault when issuing a `LIST` request.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct ListResponse {
+    /// keys will include the items listed
+    pub keys: Vec<String>,
+}
+
 /// Options that we use when renewing leases on tokens and secrets.
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct RenewOptions {
@@ -402,6 +409,8 @@ pub enum HttpVerb {
     PUT,
     /// DELETE
     DELETE,
+    /// LIST
+    LIST,
 }
 
 /// endpoint response variants
@@ -825,6 +834,10 @@ impl<T> VaultClient<T>
                 let mut res = try!(self.delete(&url));
                 parse_endpoint_response(&mut res)
             }
+            HttpVerb::LIST => {
+                let mut res = try!(self.list(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
         }
     }
 
@@ -938,6 +951,22 @@ impl<T> VaultClient<T>
     fn put(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .put(try!(self.host.join(endpoint)))
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
+        if let Some(body) = body {
+            req = req.body(body);
+        }
+
+        Ok(try!(handle_hyper_response(req.send())))
+    }
+
+    fn list(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
+        let method = hyper::method::Method::Extension("LIST".into());
+        let mut req = self.client
+            .request(method, try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if let Some(wrap_ttl) = wrap_ttl {
