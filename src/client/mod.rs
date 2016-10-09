@@ -487,10 +487,15 @@ impl VaultClient<()> {
 
     /// Construct a `VaultClient` via the `AppRole`
     /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
-    pub fn new_app_role<R: Into<String>, S: Into<String>>(host: &'a str,
-                                                          role_id: R,
-                                                          secret_id: Option<S>)
-                                                          -> Result<VaultClient<'a, ()>> {
+    pub fn new_app_role<U, R, S>(host: U,
+                                 role_id: R,
+                                 secret_id: Option<S>)
+                                 -> Result<VaultClient<()>>
+        where U: TryInto<Url, Err = Error>,
+              R: Into<String>,
+              S: Into<String>
+    {
+        let host = try!(host.try_into());
         let client = Client::new();
         let secret_id = match secret_id {
             Some(s) => Some(s.into()),
@@ -501,7 +506,7 @@ impl VaultClient<()> {
             secret_id: secret_id,
         }));
         let mut res =
-            try!(handle_hyper_response(client.post(&format!("{}/v1/auth/approle/login", host)[..])
+            try!(handle_hyper_response(client.post(try!(host.join("/v1/auth/approle/login")))
                 .body(&payload)
                 .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
@@ -525,8 +530,11 @@ impl VaultClient<()> {
     ///
     /// A common use case for this method is when a `wrapping_token` has been received and you want
     /// to query the `sys/wrapping/unwrap` endpoint.
-    pub fn new_no_lookup(host: &'a str, token: &'a str) -> Result<VaultClient<'a, ()>> {
+    pub fn new_no_lookup<U>(host: U, token: &str) -> Result<VaultClient<()>>
+        where U: TryInto<Url, Err = Error>
+    {
         let client = Client::new();
+        let host = try!(host.try_into());
         Ok(VaultClient {
             host: host,
             token: token.to_string(),
