@@ -96,7 +96,7 @@ impl<'a> TryFrom<&'a str> for Url {
 #[cfg(test)]
 mod tests {
     use client::VaultClient as Client;
-    use client::EndpointResponse;
+    use client::{self, EndpointResponse};
     use client::HttpVerb::*;
     use std::collections::HashMap;
 
@@ -212,6 +212,56 @@ mod tests {
         // read the cubbyhole response (can only do this once!)
         let res = c2.get_unwrapped_response().unwrap();
         assert_eq!(res.data.unwrap().get("value").unwrap(), "second world");
+    }
+
+    #[test]
+    fn it_can_store_policies() {
+        // use trailing slash for host to ensure Url processing fixes this later
+        let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
+        let body = "{\"rules\":\"{}\"}";
+        // enable approle auth backend
+        let res: EndpointResponse<()> =
+            c.call_endpoint(PUT, "sys/policy/test_policy_1", None, Some(body))
+                .unwrap();
+        panic_non_empty(res);
+        let res: EndpointResponse<()> =
+            c.call_endpoint(PUT, "sys/policy/test_policy_2", None, Some(body))
+                .unwrap();
+        panic_non_empty(res);
+        let mut client_policies = c.policies().unwrap();
+        client_policies.sort();
+        let mut expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
+        expected_policies.sort();
+        assert_eq!(client_policies, expected_policies);
+        let token_name = "policy_test_token";
+        let token_opts = client::TokenOptions::default()
+            .policies(vec!["test_policy_1", "test_policy_2"].into_iter())
+            .default_policy(false)
+            .id(token_name.clone())
+            .ttl(client::VaultDuration::minutes(1));
+        let _ = c.create_token(&token_opts).unwrap();
+        let body = format!("{{\"token\":\"{}\"}}", token_name);
+        let res: EndpointResponse<client::TokenData> =
+            c.call_endpoint(POST, "auth/token/lookup", None, Some(&body))
+                .unwrap();
+        match res {
+            EndpointResponse::VaultResponse(res) => {
+                let data = res.data.unwrap();
+                let mut policies = data.policies;
+                policies.sort();
+                assert_eq!(policies, ["test_policy_1", "test_policy_2"]);
+            }
+            _ => panic!("expected vault response, got: {:?}", res),
+        }
+        // clean-up
+        let res: EndpointResponse<()> =
+            c.call_endpoint(DELETE, "sys/policy/test_policy_1", None, None)
+                .unwrap();
+        panic_non_empty(res);
+        let res: EndpointResponse<()> =
+            c.call_endpoint(DELETE, "sys/policy/test_policy_2", None, None)
+                .unwrap();
+        panic_non_empty(res);
     }
 
     // helper fn to panic on empty responses
