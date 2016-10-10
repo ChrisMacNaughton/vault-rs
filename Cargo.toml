@@ -22,6 +22,6 @@ optional = true
 version = "^0.0"
 
 [features]
-default = ["vault_0.6.1", "vault_0.6.2"]
+default = ["vault_0.6.2"]
 "vault_0.6.1" = []
-"vault_0.6.2" = []
+"vault_0.6.2" = ["vault_0.6.1"]
