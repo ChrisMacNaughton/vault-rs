@@ -23,12 +23,76 @@ extern crate log;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
-extern crate chrono;
+pub extern crate chrono;
+pub extern crate url;
 
 /// vault client
 pub mod client;
 pub use client::VaultClient as Client;
 pub use client::error::Error;
+use url::Url;
+
+/// Waiting to stabilize: https://github.com/rust-lang/rust/issues/33417
+///
+/// An attempted conversion that consumes `self`, which may or may not be expensive.
+///
+/// Library authors should not directly implement this trait, but should prefer implementing
+/// the [`TryFrom`] trait, which offers greater flexibility and provides an equivalent `TryInto`
+/// implementation for free, thanks to a blanket implementation in the standard library.
+///
+/// [`TryFrom`]: trait.TryFrom.html
+pub trait TryInto<T>: Sized {
+    /// The type returned in the event of a conversion error.
+    type Err;
+
+    /// Performs the conversion.
+    fn try_into(self) -> ::std::result::Result<T, Self::Err>;
+}
+
+/// Waiting to stabilize: https://github.com/rust-lang/rust/issues/33417
+///
+/// Attempt to construct `Self` via a conversion.
+pub trait TryFrom<T>: Sized {
+    /// The type returned in the event of a conversion error.
+    type Err;
+
+    /// Performs the conversion.
+    fn try_from(T) -> ::std::result::Result<Self, Self::Err>;
+}
+
+impl<T, U> TryInto<U> for T
+    where U: TryFrom<T>
+{
+    type Err = U::Err;
+
+    fn try_into(self) -> ::std::result::Result<U, U::Err> {
+        U::try_from(self)
+    }
+}
+
+impl TryFrom<Url> for Url {
+    type Err = Error;
+    fn try_from(u: Url) -> ::std::result::Result<Self, Self::Err> {
+        Ok(u)
+    }
+}
+
+impl<'a> TryFrom<&'a Url> for Url {
+    type Err = Error;
+    fn try_from(u: &Url) -> ::std::result::Result<Self, Self::Err> {
+        Ok(u.clone())
+    }
+}
+
+impl<'a> TryFrom<&'a str> for Url {
+    type Err = Error;
+    fn try_from(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        match Url::parse(s) {
+            Ok(u) => Ok(u),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -63,6 +127,7 @@ mod tests {
         let res = client.get_secret("hello_set").unwrap();
         assert_eq!(res, "world\n");
     }
+
     #[test]
     fn it_returns_err_on_forbidden() {
         let host = "http://127.0.0.1:8200";
