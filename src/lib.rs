@@ -238,14 +238,14 @@ mod tests {
                 assert!(client_policies.contains(&p.to_string()));
             })
             .last();
-        let token_name = "policy_test_token";
+        let token_name = "policy_test_token".to_string();
         let token_opts = client::TokenOptions::default()
             .policies(vec!["test_policy_1", "test_policy_2"].into_iter())
             .default_policy(false)
-            .id(token_name.clone())
+            .id(&token_name[..])
             .ttl(client::VaultDuration::minutes(1));
         let _ = c.create_token(&token_opts).unwrap();
-        let body = format!("{{\"token\":\"{}\"}}", token_name);
+        let body = format!("{{\"token\":\"{}\"}}", &token_name);
         let res: EndpointResponse<client::TokenData> =
             c.call_endpoint(POST, "auth/token/lookup", None, Some(&body))
                 .unwrap();
