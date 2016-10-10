@@ -228,11 +228,13 @@ mod tests {
             c.call_endpoint(PUT, "sys/policy/test_policy_2", None, Some(body))
                 .unwrap();
         panic_non_empty(res);
-        let mut client_policies = c.policies().unwrap();
-        client_policies.sort();
-        let mut expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
-        expected_policies.sort();
-        assert_eq!(client_policies, expected_policies);
+        let client_policies = c.policies().unwrap();
+        let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
+        let _ = expected_policies.into_iter()
+            .map(|p| {
+                assert!(client_policies.contains(&p.to_string()));
+            })
+            .last();
         let token_name = "policy_test_token";
         let token_opts = client::TokenOptions::default()
             .policies(vec!["test_policy_1", "test_policy_2"].into_iter())
