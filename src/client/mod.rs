@@ -465,6 +465,7 @@ impl VaultClient<()> {
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
     ///
     /// NOTE: This backend is now deprecated by vault.
+    #[deprecated(since = "0.6.1")]
     pub fn new_app_id<U>(host: U, app_id: &str, user_id: &str) -> Result<VaultClient<()>>
         where U: TryInto<Url, Err = Error>
     {
