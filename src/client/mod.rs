@@ -831,7 +831,7 @@ impl<T> VaultClient<T>
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::PUT => {
-                let mut res = try!(self.post(&url, body, wrap_ttl));
+                let mut res = try!(self.put(&url, body, wrap_ttl));
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::DELETE => {
