@@ -20,13 +20,11 @@ matrix:
     - rust: beta
   include:
     - rust: nightly
-      env: VAULT_VERSION=0.6.2 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE="clippy"
+      env: VAULT_VERSION=0.6.2 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
     - rust: beta
       env: VAULT_VERSION=0.6.2 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
 env:
   matrix:
-  - VAULT_VERSION=0.4.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
-  - VAULT_VERSION=0.5.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
   - VAULT_VERSION=0.6.0 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
   - VAULT_VERSION=0.6.1 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
   - VAULT_VERSION=0.6.2 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
@@ -50,7 +48,16 @@ install:
 - export PATH=$HOME/bin:$PATH
 - vault server -dev > /dev/null 2>&1 &
 script:
-- travis-cargo test
+  - |
+      if [[ $VAULT_VERSION == 0.6.0 ]]; then
+        cargo test --verbose --no-default-features
+      elif [[ $VAULT_VERSION == 0.6.1 ]]; then
+        cargo test --verbose --no-default-features --features "vault_0.6.1"
+      elif [[ $TRAVIS_RUST_VERSION = nightly ]]; then
+        cargo test --verbose --features "clippy"
+      else
+        cargo test --verbose
+      fi
 after_success:
 - travis-cargo coveralls --no-sudo
 sudo: false

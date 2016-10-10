@@ -98,7 +98,6 @@ mod tests {
     use client::VaultClient as Client;
     use client::{self, EndpointResponse};
     use client::HttpVerb::*;
-    use std::collections::HashMap;
 
     /// vault host for testing
     const HOST: &'static str = "http://127.0.0.1:8200";
@@ -151,7 +150,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "vault_0.6.1")]
     fn it_can_perform_approle_workflow() {
+        use std::collections::HashMap;
+
         let c = Client::new(HOST, TOKEN).unwrap();
         let mut body = "{\"type\":\"approle\"}";
         // enable approle auth backend
@@ -200,6 +202,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "vault_0.6.2")]
     fn it_can_read_a_wrapped_secret() {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
@@ -267,6 +270,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "vault_0.6.1")]
     fn it_can_list_things() {
         let c = Client::new(HOST, TOKEN).unwrap();
         let _ =

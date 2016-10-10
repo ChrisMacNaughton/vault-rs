@@ -186,6 +186,7 @@ pub struct VaultResponse<D>
     where D: Decodable
 {
     /// Request id
+    #[cfg(feature = "vault_0.6.1")]
     pub request_id: String,
     /// Lease id
     pub lease_id: Option<String>,
@@ -791,12 +792,14 @@ impl<T> VaultClient<T>
     ///
     /// The `data` attribute of `VaultResponse` should contain the unwrapped information, which is
     /// returned as a `HashMap<String, String>`.
+    #[cfg(feature = "vault_0.6.2")]
     pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
         let mut res = try!(self.post("/v1/sys/wrapping/unwrap", None, None));
         parse_vault_response(&mut res)
     }
 
     /// Reads the properties of an existing `AppRole`.
+    #[cfg(feature = "vault_0.6.1")]
     pub fn get_app_role_properties(&self,
                                    role_name: &str)
                                    -> Result<VaultResponse<AppRoleProperties>> {
