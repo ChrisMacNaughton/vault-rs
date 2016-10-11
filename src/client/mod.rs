@@ -118,7 +118,7 @@ pub struct VaultClient<T>
     /// `hyper::Client`
     client: Client,
     /// Data
-    pub data: VaultResponse<T>,
+    pub data: Option<VaultResponse<T>>,
 }
 
 /// Token data, used in `VaultResponse`
@@ -185,6 +185,9 @@ pub struct Auth {
 pub struct VaultResponse<D>
     where D: Decodable
 {
+    /// Request id
+    #[cfg(feature = "vault_0.6.1")]
+    pub request_id: String,
     /// Lease id
     pub lease_id: Option<String>,
     /// True if renewable
@@ -211,7 +214,7 @@ pub struct WrapInfo {
     /// Creation time, note this returned in RFC 3339 format
     pub creation_time: VaultDateTime,
     /// Wrapped accessor
-    pub wrapped_accessor: String,
+    pub wrapped_accessor: Option<String>,
 }
 
 /// Wrapped response is serialized json
@@ -221,11 +224,42 @@ pub struct WrapData {
     response: String,
 }
 
-/// Payload to send to vault when authenticating via app-id
+/// `AppRole` properties
+#[derive(RustcDecodable, Debug)]
+pub struct AppRoleProperties {
+    /// Require `secret_id` to be presented when logging in using this `AppRole`. Defaults to 'true'.
+    pub bind_secret_id: bool,
+    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can
+    /// perform the login operation.
+    pub bound_cidr_list: String,
+    /// If set, the token generated using this `AppRole` is a periodic token; so long as it is
+    /// renewed it never expires, but the TTL set on the token at each renewal is fixed to the value
+    /// specified here. If this value is modified, the token will pick up the new value at its next
+    /// renewal.
+    pub period: VaultDuration,
+    /// List of policies set on tokens issued via this `AppRole`.
+    pub policies: Vec<String>,
+    /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
+    /// after which the `SecretID` will expire.
+    pub secret_id_num_uses: u64,
+    /// Duration after which any `SecretID` expires.
+    pub secret_id_ttl: VaultDuration,
+    /// Duration after which the issued token can no longer be renewed.
+    pub token_max_ttl: VaultDuration,
+}
+
+/// Payload to send to vault when authenticating via `AppId`
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct AppIdPayload {
     app_id: String,
     user_id: String,
+}
+
+/// Payload to send to vault when authenticating via `AppRole`
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct AppRolePayload {
+    role_id: String,
+    secret_id: Option<String>,
 }
 
 /// Postgresql secret backend
@@ -242,6 +276,13 @@ pub struct PostgresqlLogin {
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 struct PoliciesResponse {
     policies: Vec<String>,
+}
+
+/// Response sent by vault when issuing a `LIST` request.
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct ListResponse {
+    /// keys will include the items listed
+    pub keys: Vec<String>,
 }
 
 /// Options that we use when renewing leases on tokens and secrets.
@@ -272,7 +313,7 @@ struct RenewOptions {
 ///   .explicit_max_ttl(VaultDuration::hours(13));
 /// ```
 ///
-/// If an option is not specified, it will be set accordinding to [Vault's
+/// If an option is not specified, it will be set according to [Vault's
 /// standard defaults for newly-created tokens][token].
 ///
 /// [token]: https://www.vaultproject.io/docs/auth/token.html
@@ -358,12 +399,38 @@ impl TokenOptions {
     }
 }
 
+/// http verbs
+#[derive(Debug)]
+pub enum HttpVerb {
+    /// GET
+    GET,
+    /// POST
+    POST,
+    /// PUT
+    PUT,
+    /// DELETE
+    DELETE,
+    /// LIST
+    LIST,
+}
+
+/// endpoint response variants
+#[derive(Debug)]
+pub enum EndpointResponse<D>
+    where D: Decodable
+{
+    /// Vault response
+    VaultResponse(VaultResponse<D>),
+    /// Empty, but still successful response
+    Empty,
+}
+
 header! {
     /// Token used to authenticate with the vault API
     (XVaultToken, "X-Vault-Token") => [String]
 }
 header! {
-    /// The TTL for the token is set by the client using the X-Vault-Wrap-TTL header and can be
+    /// The TTL for the token is set by the client using the `X-Vault-Wrap-TTL` header and can be
     /// either an integer number of seconds or a string duration of seconds (15s), minutes (20m),
     /// or hours (25h). When using the Vault CLI, you can set this via the -wrap-ttl parameter.
     /// Response wrapping is per-request; it is the presence of a value in this header that
@@ -389,7 +456,7 @@ impl VaultClient<TokenData> {
             host: host,
             token: token.to_string(),
             client: client,
-            data: decoded,
+            data: Some(decoded),
         })
     }
 }
@@ -397,6 +464,9 @@ impl VaultClient<TokenData> {
 impl VaultClient<()> {
     /// Construct a `VaultClient` via the `App ID`
     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
+    ///
+    /// NOTE: This backend is now deprecated by vault.
+    #[deprecated(since = "0.6.1")]
     pub fn new_app_id<U>(host: U, app_id: &str, user_id: &str) -> Result<VaultClient<()>>
         where U: TryInto<Url, Err = Error>
     {
@@ -422,7 +492,65 @@ impl VaultClient<()> {
             host: host,
             token: token,
             client: client,
-            data: decoded,
+            data: Some(decoded),
+        })
+    }
+
+    /// Construct a `VaultClient` via the `AppRole`
+    /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
+    pub fn new_app_role<U, R, S>(host: U,
+                                 role_id: R,
+                                 secret_id: Option<S>)
+                                 -> Result<VaultClient<()>>
+        where U: TryInto<Url, Err = Error>,
+              R: Into<String>,
+              S: Into<String>
+    {
+        let host = try!(host.try_into());
+        let client = Client::new();
+        let secret_id = match secret_id {
+            Some(s) => Some(s.into()),
+            None => None,
+        };
+        let payload = try!(json::encode(&AppRolePayload {
+            role_id: role_id.into(),
+            secret_id: secret_id,
+        }));
+        let mut res =
+            try!(handle_hyper_response(client.post(try!(host.join("/v1/auth/approle/login")))
+                .body(&payload)
+                .send()));
+        let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
+        let token = match decoded.auth {
+            Some(ref auth) => auth.client_token.clone(),
+            None => {
+                return Err(Error::Vault(format!("No client token found in response: `{:?}`",
+                                                &decoded.auth)))
+            }
+        };
+        Ok(VaultClient {
+            host: host,
+            token: token,
+            client: client,
+            data: Some(decoded),
+        })
+    }
+
+    /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
+    /// provided token is a single-use token.
+    ///
+    /// A common use case for this method is when a `wrapping_token` has been received and you want
+    /// to query the `sys/wrapping/unwrap` endpoint.
+    pub fn new_no_lookup<U>(host: U, token: &str) -> Result<VaultClient<()>>
+        where U: TryInto<Url, Err = Error>
+    {
+        let client = Client::new();
+        let host = try!(host.try_into());
+        Ok(VaultClient {
+            host: host,
+            token: token.to_string(),
+            client: client,
+            data: None,
         })
     }
 }
@@ -448,9 +576,11 @@ impl<T> VaultClient<T>
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew(&mut self) -> Result<()> {
-        let mut res = try!(self.post("/v1/auth/token/renew-self", None));
+        let mut res = try!(self.post("/v1/auth/token/renew-self", None, None));
         let vault_res: VaultResponse<T> = try!(parse_vault_response(&mut res));
-        self.data.auth = vault_res.auth;
+        if let Some(ref mut data) = self.data {
+            data.auth = vault_res.auth;
+        }
         Ok(())
     }
 
@@ -474,7 +604,7 @@ impl<T> VaultClient<T>
     pub fn renew_token(&self, token: &str, increment: Option<u64>) -> Result<Auth> {
         let body = try!(json::encode(&RenewOptions { increment: increment }));
         let url = format!("/v1/auth/token/renew/{}", token);
-        let mut res = try!(self.post(&url, Some(&body)));
+        let mut res = try!(self.post(&url, Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         vault_res.auth
             .ok_or_else(|| Error::Vault("No auth data returned while renewing token".to_owned()))
@@ -509,7 +639,7 @@ impl<T> VaultClient<T>
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn revoke(self) -> Result<()> {
-        let _ = try!(self.post("/v1/auth/token/revoke-self", None));
+        let _ = try!(self.post("/v1/auth/token/revoke-self", None, None));
         Ok(())
     }
 
@@ -535,7 +665,7 @@ impl<T> VaultClient<T>
     /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
     pub fn renew_lease(&self, lease_id: &str, increment: Option<u64>) -> Result<VaultResponse<()>> {
         let body = try!(json::encode(&RenewOptions { increment: increment }));
-        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id), Some(&body)));
+        let mut res = try!(self.put(&format!("/v1/sys/renew/{}", lease_id), Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         Ok(vault_res)
     }
@@ -594,7 +724,7 @@ impl<T> VaultClient<T>
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn create_token(&self, opts: &TokenOptions) -> Result<Auth> {
         let body = try!(json::encode(opts));
-        let mut res = try!(self.post("/v1/auth/token/create", Some(&body)));
+        let mut res = try!(self.post("/v1/auth/token/create", Some(&body), None));
         let vault_res: VaultResponse<()> = try!(parse_vault_response(&mut res));
         vault_res.auth.ok_or_else(|| Error::Vault("Created token did not include auth data".into()))
     }
@@ -615,7 +745,8 @@ impl<T> VaultClient<T>
     /// ```
     pub fn set_secret(&self, key: &str, value: &str) -> Result<()> {
         let _ = try!(self.post(&format!("/v1/secret/{}", key)[..],
-                               Some(&format!("{{\"value\": \"{}\"}}", self.escape(value))[..])));
+                               Some(&format!("{{\"value\": \"{}\"}}", self.escape(value))[..]),
+                               None));
         Ok(())
     }
 
@@ -653,16 +784,85 @@ impl<T> VaultClient<T>
     /// https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
     pub fn get_secret_wrapped(&self, key: &str, wrap_ttl: &str) -> Result<VaultResponse<()>> {
         let mut res = try!(self.get(&format!("/v1/secret/{}", key)[..], Some(wrap_ttl)));
-        Ok(try!(parse_vault_response(&mut res)))
+        parse_vault_response(&mut res)
     }
 
-    /// Fetch wrapped response from `cubbyhole/response`
+    /// Using a vault client created from a wrapping token, fetch the unwrapped `VaultResponse` from
+    /// `sys/wrapping/unwrap`.
     ///
-    /// The original response (in the `response` key) is what is returned
-    pub fn get_cubbyhole_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
-        let mut res = try!(self.get("/v1/cubbyhole/response", None));
-        let decoded: VaultResponse<WrapData> = try!(parse_vault_response(&mut res));
-        Ok(try!(json::decode(&decoded.data.unwrap().response[..])))
+    /// The `data` attribute of `VaultResponse` should contain the unwrapped information, which is
+    /// returned as a `HashMap<String, String>`.
+    #[cfg(feature = "vault_0.6.2")]
+    pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
+        let mut res = try!(self.post("/v1/sys/wrapping/unwrap", None, None));
+        parse_vault_response(&mut res)
+    }
+
+    /// Reads the properties of an existing `AppRole`.
+    #[cfg(feature = "vault_0.6.1")]
+    pub fn get_app_role_properties(&self,
+                                   role_name: &str)
+                                   -> Result<VaultResponse<AppRoleProperties>> {
+        let mut res = try!(self.get(&format!("/v1/auth/approle/role/{}", role_name), None));
+        parse_vault_response(&mut res)
+    }
+
+    /// This function is an "escape hatch" of sorts to call any other vault api methods that
+    /// aren't directly supported in this library.
+    ///
+    /// Select the http verb you want, along with the endpoint, e.g. `auth/token/create`, along
+    /// with any wrapping or associated body text and the request will be sent.
+    ///
+    /// See `it_can_perform_approle_workflow` test case for examples.
+    pub fn call_endpoint<D: Decodable>(&self,
+                                       http_verb: HttpVerb,
+                                       endpoint: &str,
+                                       wrap_ttl: Option<&str>,
+                                       body: Option<&str>)
+                                       -> Result<EndpointResponse<D>> {
+        let url = format!("/v1/{}", endpoint);
+        match http_verb {
+            HttpVerb::GET => {
+                let mut res = try!(self.get(&url, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::POST => {
+                let mut res = try!(self.post(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::PUT => {
+                let mut res = try!(self.put(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::DELETE => {
+                let mut res = try!(self.delete(&url));
+                parse_endpoint_response(&mut res)
+            }
+            HttpVerb::LIST => {
+                let mut res = try!(self.list(&url, body, wrap_ttl));
+                parse_endpoint_response(&mut res)
+            }
+        }
+    }
+
+    /// Accesses a given endpoint using the provided `wrap_ttl` and returns a single-use
+    /// `wrapping_token` to access the response provided by the endpoint.
+    pub fn get_wrapping_token_for_endpoint(&self,
+                                           http_verb: HttpVerb,
+                                           endpoint: &str,
+                                           wrap_ttl: &str,
+                                           body: Option<&str>)
+                                           -> Result<String> {
+        let res = try!(self.call_endpoint::<()>(http_verb, endpoint, Some(wrap_ttl), body));
+        match res {
+            EndpointResponse::VaultResponse(res) => {
+                match res.wrap_info {
+                    Some(wrap_info) => Ok(wrap_info.token),
+                    _ => Err(Error::Vault(format!("wrap_info is missing in response: {:?}", res))),
+                }
+            }
+            EndpointResponse::Empty => Err(Error::Vault("Received an empty response".to_string())),
+        }
     }
 
     ///
@@ -722,8 +922,8 @@ impl<T> VaultClient<T>
             .get(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
-        if wrap_ttl.is_some() {
-            req = req.header(XVaultWrapTTL(wrap_ttl.unwrap().to_string()));
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
         }
 
         Ok(try!(handle_hyper_response(req.send())))
@@ -737,11 +937,14 @@ impl<T> VaultClient<T>
             .send())))
     }
 
-    fn post(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+    fn post(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .post(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
         if let Some(body) = body {
             req = req.body(body);
         }
@@ -749,13 +952,32 @@ impl<T> VaultClient<T>
         Ok(try!(handle_hyper_response(req.send())))
     }
 
-    fn put(&self, endpoint: &str, body: Option<&str>) -> Result<Response> {
+    fn put(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
             .put(try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
-        if body.is_some() {
-            req = req.body(body.unwrap());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
+        if let Some(body) = body {
+            req = req.body(body);
+        }
+
+        Ok(try!(handle_hyper_response(req.send())))
+    }
+
+    fn list(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
+        let method = hyper::method::Method::Extension("LIST".into());
+        let mut req = self.client
+            .request(method, try!(self.host.join(endpoint)))
+            .header(XVaultToken(self.token.to_string()))
+            .header(header::ContentType::json());
+        if let Some(wrap_ttl) = wrap_ttl {
+            req = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        }
+        if let Some(body) = body {
+            req = req.body(body);
         }
 
         Ok(try!(handle_hyper_response(req.send())))
@@ -787,4 +1009,19 @@ fn parse_vault_response<T>(res: &mut Response) -> Result<T>
     trace!("Response: {:?}", &body);
     let vault_res: T = try!(json::decode(&body));
     Ok(vault_res)
+}
+
+/// checks if response is empty before attempting to convert to a `VaultResponse`
+fn parse_endpoint_response<T>(res: &mut Response) -> Result<EndpointResponse<T>>
+    where T: Decodable
+{
+    let mut body = String::new();
+    let _ = try!(res.read_to_string(&mut body));
+    trace!("Response: {:?}", &body);
+    if body.is_empty() {
+        Ok(EndpointResponse::Empty)
+    } else {
+        let vault_res: VaultResponse<T> = try!(json::decode(&body));
+        Ok(EndpointResponse::VaultResponse(vault_res))
+    }
 }
