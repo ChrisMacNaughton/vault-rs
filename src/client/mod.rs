@@ -3,7 +3,7 @@ use std::io::Read;
 use std::result;
 
 use reqwest::{self, header, Client, Method, Response};
-use reqwest::header::Headers;
+// use reqwest::header::Headers;
 // use hyper::{self, header, Client};
 // use hyper::client::response::Response;
 use rustc_serialize::{json, Decodable, Decoder, Encodable, Encoder};
