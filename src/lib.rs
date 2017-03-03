@@ -15,6 +15,7 @@
 
 //! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
 
+extern crate reqwest;
 #[macro_use]
 extern crate hyper;
 #[macro_use]
