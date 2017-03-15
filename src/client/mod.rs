@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::result;
 
-use hyper::{self, header, Client};
-use hyper::client::response::Response;
+use reqwest::{self, header, Client, Method, Response};
+// use reqwest::header::Headers;
+// use hyper::{self, header, Client};
+// use hyper::client::response::Response;
 use rustc_serialize::{json, Decodable, Decoder, Encodable, Encoder};
 
 use client::error::{Error, Result};
@@ -446,7 +448,7 @@ impl VaultClient<TokenData> {
         where U: TryInto<Url, Err = Error>
     {
         let host = try!(host.try_into());
-        let client = Client::new();
+        let client = Client::new()?;
         let mut res = try!(
             handle_hyper_response(client.get(try!(host.join("/v1/auth/token/lookup-self")))
                                   .header(XVaultToken(token.to_string()))
@@ -471,14 +473,14 @@ impl VaultClient<()> {
         where U: TryInto<Url, Err = Error>
     {
         let host = try!(host.try_into());
-        let client = Client::new();
+        let client = Client::new()?;
         let payload = try!(json::encode(&AppIdPayload {
             app_id: app_id.to_string(),
             user_id: user_id.to_string(),
         }));
         let mut res =
             try!(handle_hyper_response(client.post(try!(host.join("/v1/auth/app-id/login")))
-                .body(&payload)
+                .body(payload)
                 .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
         let token = match decoded.auth {
@@ -507,7 +509,7 @@ impl VaultClient<()> {
               S: Into<String>
     {
         let host = try!(host.try_into());
-        let client = Client::new();
+        let client = Client::new()?;
         let secret_id = match secret_id {
             Some(s) => Some(s.into()),
             None => None,
@@ -518,7 +520,7 @@ impl VaultClient<()> {
         }));
         let mut res =
             try!(handle_hyper_response(client.post(try!(host.join("/v1/auth/approle/login")))
-                .body(&payload)
+                .body(payload)
                 .send()));
         let decoded: VaultResponse<()> = try!(parse_vault_response(&mut res));
         let token = match decoded.auth {
@@ -544,7 +546,7 @@ impl VaultClient<()> {
     pub fn new_no_lookup<U>(host: U, token: &str) -> Result<VaultClient<()>>
         where U: TryInto<Url, Err = Error>
     {
-        let client = Client::new();
+        let client = Client::new()?;
         let host = try!(host.try_into());
         Ok(VaultClient {
             host: host,
@@ -931,7 +933,7 @@ impl<T> VaultClient<T>
 
     fn delete(&self, endpoint: &str) -> Result<Response> {
         Ok(try!(handle_hyper_response(self.client
-            .delete(try!(self.host.join(endpoint)))
+            .request(Method::Delete, try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json())
             .send())))
@@ -954,7 +956,7 @@ impl<T> VaultClient<T>
 
     fn put(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
         let mut req = self.client
-            .put(try!(self.host.join(endpoint)))
+            .request(Method::Put, try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if let Some(wrap_ttl) = wrap_ttl {
@@ -968,9 +970,10 @@ impl<T> VaultClient<T>
     }
 
     fn list(&self, endpoint: &str, body: Option<&str>, wrap_ttl: Option<&str>) -> Result<Response> {
-        let method = hyper::method::Method::Extension("LIST".into());
+        // let method = hyper::method::Method::Extension("LIST".into());
         let mut req = self.client
-            .request(method, try!(self.host.join(endpoint)))
+            .request(Method::Extension("LIST".into()),
+                     try!(self.host.join(endpoint)))
             .header(XVaultToken(self.token.to_string()))
             .header(header::ContentType::json());
         if let Some(wrap_ttl) = wrap_ttl {
@@ -985,9 +988,9 @@ impl<T> VaultClient<T>
 }
 
 /// helper fn to check `Response` for success
-fn handle_hyper_response(res: ::std::result::Result<Response, hyper::Error>) -> Result<Response> {
+fn handle_hyper_response(res: ::std::result::Result<Response, reqwest::Error>) -> Result<Response> {
     let mut res = try!(res);
-    if res.status.is_success() {
+    if res.status().is_success() {
         Ok(res)
     } else {
         let mut error_msg = String::new();

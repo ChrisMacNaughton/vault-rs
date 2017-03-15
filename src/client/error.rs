@@ -1,4 +1,4 @@
-use {hyper, rustc_serialize, url};
+use {hyper, reqwest, rustc_serialize, url};
 
 /// `Result` type-alias
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -12,6 +12,13 @@ quick_error! {
             from()
             description("hyper error")
             display("hyper error: {}", err)
+            cause(err)
+        }
+        /// `reqwest::Error` errors
+        Reqwest(err: reqwest::Error) {
+            from()
+            description("reqwest error")
+            display("reqwest error: {}", err)
             cause(err)
         }
         /// `rustc_serialize EncoderError`
