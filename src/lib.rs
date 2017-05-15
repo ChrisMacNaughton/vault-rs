@@ -20,11 +20,14 @@ extern crate reqwest;
 extern crate hyper;
 #[macro_use]
 extern crate log;
-extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
 pub extern crate chrono;
 pub extern crate url;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 /// vault client
 pub mod client;
