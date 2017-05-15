@@ -1,4 +1,4 @@
-use {hyper, reqwest, rustc_serialize, url};
+use {reqwest, rustc_serialize, url};
 
 /// `Result` type-alias
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -7,13 +7,6 @@ quick_error! {
     /// Error enum for vault-rs
     #[derive(Debug)]
     pub enum Error {
-        /// `Hyper::Client` errors
-        Hyper(err: hyper::Error) {
-            from()
-            description("hyper error")
-            display("hyper error: {}", err)
-            cause(err)
-        }
         /// `reqwest::Error` errors
         Reqwest(err: reqwest::Error) {
             from()
