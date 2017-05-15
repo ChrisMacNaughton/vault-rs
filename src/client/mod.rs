@@ -152,9 +152,7 @@ impl<'de> Deserialize<'de> for VaultDateTime {
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
-pub struct VaultClient<T>
-    where T: DeserializeOwned
-{
+pub struct VaultClient<T> {
     /// URL to vault instance
     pub host: Url,
     /// Token to access vault
@@ -458,9 +456,7 @@ pub enum HttpVerb {
 
 /// endpoint response variants
 #[derive(Debug)]
-pub enum EndpointResponse<D>
-    where D: DeserializeOwned
-{
+pub enum EndpointResponse<D> {
     /// Vault response
     VaultResponse(VaultResponse<D>),
     /// Empty, but still successful response
