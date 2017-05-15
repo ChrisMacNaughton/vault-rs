@@ -130,7 +130,7 @@ impl<'de> Visitor<'de> for VaultDateTimeVisitor {
     fn visit_str<E>(self, value: &str) -> StdResult<Self::Value, E>
         where E: de::Error
     {
-        let date_time = DateTime::parse_from_rfc3339(&value);
+        let date_time = DateTime::parse_from_rfc3339(value);
         match date_time {
             Ok(dt) => Ok(VaultDateTime(dt)),
             Err(e) => {
