@@ -124,7 +124,7 @@ impl<'de> Visitor<'de> for VaultDateTimeVisitor {
     type Value = VaultDateTime;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a positive integer")
+        formatter.write_str("a timestamp string")
     }
 
     fn visit_str<E>(self, value: &str) -> StdResult<Self::Value, E>
