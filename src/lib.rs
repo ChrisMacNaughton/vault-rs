@@ -215,7 +215,7 @@ mod tests {
         let res = client.get_secret_wrapped("hello_delete_2", "2m").unwrap();
         let wrapping_token = res.wrap_info.unwrap().token;
         // make a new client with the wrapping token
-        let c2 = Client::new_no_lookup(HOST, &wrapping_token[..]).unwrap();
+        let c2 = Client::new_no_lookup(HOST, wrapping_token).unwrap();
         // read the cubbyhole response (can only do this once!)
         let res = c2.get_unwrapped_response().unwrap();
         assert_eq!(res.data.unwrap()["value"], "second world");

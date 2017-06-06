@@ -665,7 +665,7 @@ impl<T> VaultClient<T>
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, &res.client_token).unwrap();
+    /// let mut new_client = Client::new(host, &res.client_token[..]).unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
@@ -698,7 +698,7 @@ impl<T> VaultClient<T>
     /// // secret.
     /// let lease_id: String = unimplemented!();
     ///
-    /// client.renew_lease(&lease_id, None).unwrap();
+    /// client.renew_lease(lease_id, None).unwrap();
     /// # }
     /// ```
     ///
@@ -761,7 +761,7 @@ impl<T> VaultClient<T>
     ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
     /// let res = client.create_token(&opts).unwrap();
     ///
-    /// # let new_client = Client::new(host, &res.client_token).unwrap();
+    /// # let new_client = Client::new(host, res.client_token).unwrap();
     /// # new_client.revoke().unwrap();
     /// # }
     /// ```
