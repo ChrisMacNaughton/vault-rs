@@ -215,7 +215,7 @@ mod tests {
         let res = client.get_secret_wrapped("hello_delete_2", "2m").unwrap();
         let wrapping_token = res.wrap_info.unwrap().token;
         // make a new client with the wrapping token
-        let c2 = Client::new_no_lookup(HOST, &wrapping_token).unwrap();
+        let c2 = Client::new_no_lookup(HOST, &wrapping_token[..]).unwrap();
         // read the cubbyhole response (can only do this once!)
         let res = c2.get_unwrapped_response().unwrap();
         assert_eq!(res.data.unwrap()["value"], "second world");
@@ -237,11 +237,10 @@ mod tests {
         panic_non_empty(&res);
         let client_policies = c.policies().unwrap();
         let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
-        let _ = expected_policies
-            .into_iter()
+        let _ = expected_policies.into_iter()
             .map(|p| {
-                     assert!(client_policies.contains(&p.to_string()));
-                 })
+                assert!(client_policies.contains(&p.to_string()));
+            })
             .last();
         let token_name = "policy_test_token".to_string();
         let token_opts = client::TokenOptions::default()
@@ -278,12 +277,14 @@ mod tests {
     #[cfg(feature = "vault_0.6.1")]
     fn it_can_list_things() {
         let c = Client::new(HOST, TOKEN).unwrap();
-        let _ = c.create_token(&client::TokenOptions::default()
-                                    .ttl(client::VaultDuration::minutes(1)))
-            .unwrap();
-        let _ = c.create_token(&client::TokenOptions::default()
-                                    .ttl(client::VaultDuration::minutes(1)))
-            .unwrap();
+        let _ =
+            c.create_token(&client::TokenOptions::default()
+                    .ttl(client::VaultDuration::minutes(1)))
+                .unwrap();
+        let _ =
+            c.create_token(&client::TokenOptions::default()
+                    .ttl(client::VaultDuration::minutes(1)))
+                .unwrap();
         let res: EndpointResponse<client::ListResponse> =
             c.call_endpoint(LIST, "auth/token/accessors", None, None)
                 .unwrap();
