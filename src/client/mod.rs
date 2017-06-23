@@ -790,16 +790,9 @@ impl<T> VaultClient<T>
     /// # }
     /// ```
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
-        let _ = try!(self.post::<_, String>(&format!("/v1/secret/{}", key.into())[..],
-                                            Some(&format!("{{\"value\": \"{}\"}}",
-                                                          self.escape(value.as_ref()))
-                                                      [..]),
-                                            None));
-        Ok(())
-    }
-
-    fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref().replace("\n", "\\n")
+        let value = json!({"value": value.as_ref()}).to_string();
+        self.post::<_, String>(&format!("/v1/secret/{}", key.into()), Some(&value), None)
+            .map(|_| ())
     }
 
     ///
