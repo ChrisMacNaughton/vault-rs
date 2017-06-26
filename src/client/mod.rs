@@ -1,17 +1,17 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::io::Read;
 use std::result::Result as StdResult;
-use std::fmt;
+use std::time::Duration;
 
+use TryInto;
 use reqwest::{self, header, Client, Method, Response};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use client::error::{Error, Result};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::de::{self, Visitor, DeserializeOwned};
-
-use std::time::Duration;
-use chrono::{DateTime, FixedOffset, NaiveDateTime};
+use serde_json::{self, Value};
 use url::Url;
-use {serde_json, TryInto};
 
 /// Errors
 pub mod error;
@@ -494,35 +494,67 @@ impl VaultClient<TokenData> {
     pub fn init<U>(host: U, shares: usize, threshold: usize) -> Result<VaultClient<TokenData>>
         where U: TryInto<Url, Err = Error>
     {
-        let host = try!(host.try_into());
+        let host = host.try_into()?;
         let client = Client::new()?;
         let payload = json!({"secret_shares": shares, "secret_threshold": threshold});
         let res = handle_hyper_response(client.put(host.join("/v1/sys/init")?)
                                               .body(payload.to_string().as_str())
                                               .send())?;
         let data: KeyData = parse_vault_response(res)?;
-        let mut vault = VaultClient::new(host, &data.root_token)?;
-        vault.keys = data.keys;
-        Ok(vault)
+        VaultClient::new(host, data.root_token.as_str(), &data.keys)
+    }
+
+    /// Make an API request to progress through unsealing a vault. Return if already unsealed.
+    #[allow(unused_results)]
+    fn unseal<U, T>(host: U, keys: &[T]) -> Result<()>
+        where U: TryInto<Url, Err = Error>, T: Clone + Into<String>
+    {
+        let host = host.try_into()?;
+        let client = Client::new()?;
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?)
+                                              .send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        let mut sealed = decoded.get("sealed").and_then(|v| v.as_bool())
+                                .ok_or(Error::Vault("expected seal status in response".to_owned()))?;
+        let mut key_iter = keys.iter();
+        if sealed {
+            let total = decoded.get("t").and_then(|v| v.as_u64())
+                               .ok_or(Error::Vault("expected total number of keys in response".to_owned()))?;
+            if keys.len() < total as usize {
+                return Err(Error::Vault(format!("Expected at least {} keys for unsealing Vault", total)))
+            }
+        }
+
+        while sealed {
+            let key: String = key_iter.next().unwrap().clone().into();
+            let payload = json!({"key": key});
+            let res = handle_hyper_response(client.put(host.join("/v1/sys/unseal")?)
+                                                  .body(payload.to_string().as_str())
+                                                  .send())?;
+            let decoded: Value = parse_vault_response(res)?;
+            sealed = decoded.get("sealed").and_then(|v| v.as_bool())
+                            .ok_or(Error::Vault("expected seal status in response".to_owned()))?;
+        }
+
+        Ok(())
     }
 
     /// Construct a `VaultClient` from an existing vault token
-    pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
-        where U: TryInto<Url, Err = Error>
+    pub fn new<U, T, S>(host: U, token: T, unseal_keys: &[S]) -> Result<VaultClient<TokenData>>
+        where U: TryInto<Url, Err = Error> + Clone, T: Clone + Into<String>, S: Clone + Into<String>
     {
-        let host = try!(host.try_into());
+        VaultClient::unseal(host.clone(), unseal_keys)?;
+        let host = host.try_into()?;
         let client = Client::new()?;
-        let token = token.into();
-        let res = try!(
-            handle_hyper_response(client.get(try!(host.join("/v1/auth/token/lookup-self")))
-                                  .header(XVaultToken(token.to_owned()))
-                                  .send()));
+        let res = handle_hyper_response(client.get(host.join("/v1/auth/token/lookup-self")?)
+                                              .header(XVaultToken(token.clone().into()))
+                                              .send())?;
         let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
         Ok(VaultClient {
             host: host,
-            token: token,
+            token: token.into(),
             client: client,
-            keys: vec![],
+            keys: unseal_keys.iter().map(|s| s.clone().into()).collect(),
             data: Some(decoded),
         })
     }
@@ -820,6 +852,7 @@ impl<T> VaultClient<T>
     /// assert!(res.is_ok());
     /// # }
     /// ```
+    #[allow(unused_results)]
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
         let value = json!({"value": value.as_ref()}).to_string();
         self.post::<_, String>(&format!("/v1/secret/{}", key.into()), Some(&value), None)
