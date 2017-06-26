@@ -157,6 +157,8 @@ pub struct VaultClient<T> {
     pub host: Url,
     /// Token to access vault
     pub token: String,
+    /// Unseal keys
+    pub keys: Vec<String>,
     /// `hyper::Client`
     client: Client,
     /// Data
@@ -478,7 +480,32 @@ header! {
     (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
 }
 
+#[derive(Deserialize)]
+#[allow(dead_code)]         // We need only one of the key fields
+struct KeyData {
+    root_token: String,
+    keys_base64: Vec<String>,
+    keys: Vec<String>,
+}
+
 impl VaultClient<TokenData> {
+    /// Construct a client by initializing a vault server.
+    #[allow(unused_results)]
+    pub fn init<U>(host: U, shares: usize, threshold: usize) -> Result<VaultClient<TokenData>>
+        where U: TryInto<Url, Err = Error>
+    {
+        let host = try!(host.try_into());
+        let client = Client::new()?;
+        let payload = json!({"secret_shares": shares, "secret_threshold": threshold});
+        let res = handle_hyper_response(client.put(host.join("/v1/sys/init")?)
+                                              .body(payload.to_string().as_str())
+                                              .send())?;
+        let data: KeyData = parse_vault_response(res)?;
+        let mut vault = VaultClient::new(host, &data.root_token)?;
+        vault.keys = data.keys;
+        Ok(vault)
+    }
+
     /// Construct a `VaultClient` from an existing vault token
     pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
         where U: TryInto<Url, Err = Error>
@@ -488,13 +515,14 @@ impl VaultClient<TokenData> {
         let token = token.into();
         let res = try!(
             handle_hyper_response(client.get(try!(host.join("/v1/auth/token/lookup-self")))
-                                  .header(XVaultToken(token.clone()))
+                                  .header(XVaultToken(token.to_owned()))
                                   .send()));
         let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
         Ok(VaultClient {
             host: host,
             token: token,
             client: client,
+            keys: vec![],
             data: Some(decoded),
         })
     }
@@ -533,6 +561,7 @@ impl VaultClient<()> {
             host: host,
             token: token,
             client: client,
+            keys: vec![],
             data: Some(decoded),
         })
     }
@@ -572,6 +601,7 @@ impl VaultClient<()> {
             host: host,
             token: token,
             client: client,
+            keys: vec![],
             data: Some(decoded),
         })
     }
@@ -590,6 +620,7 @@ impl VaultClient<()> {
             host: host,
             token: token.into(),
             client: client,
+            keys: vec![],
             data: None,
         })
     }
