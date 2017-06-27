@@ -665,7 +665,7 @@ impl<T> VaultClient<T>
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, &res.client_token[..]).unwrap();
+    /// let mut new_client = Client::new(host, res.client_token).unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
