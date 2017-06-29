@@ -488,6 +488,18 @@ struct KeyData {
     keys: Vec<String>,
 }
 
+/// Represents the state of the vault server.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum VaultStatus {
+    /// The vault has been initialized, but it's in a sealed state.
+    /// It has to be unsealed with the unseal keys for use.
+    Sealed,
+    /// The vault hasn't been initialized yet.
+    Uninitialized,
+    /// The vault is unsealed. It's ready for use.
+    Unsealed,
+}
+
 impl VaultClient<TokenData> {
     /// Construct a client by initializing a vault server.
     #[allow(unused_results)]
@@ -504,6 +516,27 @@ impl VaultClient<TokenData> {
         VaultClient::new(host, data.root_token.as_str(), &data.keys)
     }
 
+    /// Query the vault server for its status.
+    pub fn get_status<U>(host: U) -> Result<VaultStatus>
+        where U: TryInto<Url, Err = Error>
+    {
+        let host = host.try_into()?;
+        let client = Client::new()?;
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/init")?).send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        let init = decoded.get("initialized").and_then(|v| v.as_bool())
+                          .ok_or(Error::Vault("expected init status in response".to_owned()))?;
+        if !init {
+            return Ok(VaultStatus::Uninitialized)
+        }
+
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?).send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        decoded.get("sealed").and_then(|v| v.as_bool())
+               .map(|sealed| if sealed { VaultStatus::Sealed } else { VaultStatus::Unsealed })
+               .ok_or(Error::Vault("expected seal status in response".to_owned()))
+    }
+
     /// Make an API request to progress through unsealing a vault. Return if already unsealed.
     #[allow(unused_results)]
     fn unseal<U, T>(host: U, keys: &[T]) -> Result<()>
@@ -511,8 +544,7 @@ impl VaultClient<TokenData> {
     {
         let host = host.try_into()?;
         let client = Client::new()?;
-        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?)
-                                              .send())?;
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?).send())?;
         let decoded: Value = parse_vault_response(res)?;
         let mut sealed = decoded.get("sealed").and_then(|v| v.as_bool())
                                 .ok_or(Error::Vault("expected seal status in response".to_owned()))?;
@@ -521,7 +553,7 @@ impl VaultClient<TokenData> {
             let total = decoded.get("t").and_then(|v| v.as_u64())
                                .ok_or(Error::Vault("expected total number of keys in response".to_owned()))?;
             if keys.len() < total as usize {
-                return Err(Error::Vault(format!("Expected at least {} keys for unsealing Vault", total)))
+                return Err(Error::Vault(format!("expected at least {} keys for unsealing Vault", total)))
             }
         }
 
