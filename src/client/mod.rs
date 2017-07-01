@@ -1,17 +1,17 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::io::Read;
 use std::result::Result as StdResult;
-use std::fmt;
+use std::time::Duration;
 
+use TryInto;
 use reqwest::{self, header, Client, Method, Response};
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use client::error::{Error, Result};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::de::{self, Visitor, DeserializeOwned};
-
-use std::time::Duration;
-use chrono::{DateTime, FixedOffset, NaiveDateTime};
+use serde_json::{self, Value};
 use url::Url;
-use {serde_json, TryInto};
 
 /// Errors
 pub mod error;
@@ -157,6 +157,8 @@ pub struct VaultClient<T> {
     pub host: Url,
     /// Token to access vault
     pub token: String,
+    /// Unseal keys
+    pub keys: Vec<String>,
     /// `hyper::Client`
     client: Client,
     /// Data
@@ -478,23 +480,113 @@ header! {
     (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
 }
 
+#[derive(Deserialize)]
+#[allow(dead_code)]         // We need only one of the key fields
+struct KeyData {
+    root_token: String,
+    keys_base64: Vec<String>,
+    keys: Vec<String>,
+}
+
+/// Represents the state of the vault server.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum VaultStatus {
+    /// The vault has been initialized, but it's in a sealed state.
+    /// It has to be unsealed with the unseal keys for use.
+    Sealed,
+    /// The vault hasn't been initialized yet.
+    Uninitialized,
+    /// The vault is unsealed. It's ready for use.
+    Unsealed,
+}
+
 impl VaultClient<TokenData> {
-    /// Construct a `VaultClient` from an existing vault token
-    pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
+    /// Construct a client by initializing a vault server.
+    #[allow(unused_results)]
+    pub fn init<U>(host: U, shares: usize, threshold: usize) -> Result<VaultClient<TokenData>>
         where U: TryInto<Url, Err = Error>
     {
-        let host = try!(host.try_into());
+        let host = host.try_into()?;
         let client = Client::new()?;
-        let token = token.into();
-        let res = try!(
-            handle_hyper_response(client.get(try!(host.join("/v1/auth/token/lookup-self")))
-                                  .header(XVaultToken(token.clone()))
-                                  .send()));
+        let payload = json!({"secret_shares": shares, "secret_threshold": threshold});
+        let res = handle_hyper_response(client.put(host.join("/v1/sys/init")?)
+                                              .body(payload.to_string().as_str())
+                                              .send())?;
+        let data: KeyData = parse_vault_response(res)?;
+        VaultClient::new(host, data.root_token.as_str(), &data.keys)
+    }
+
+    /// Query the vault server for its status.
+    pub fn get_status<U>(host: U) -> Result<VaultStatus>
+        where U: TryInto<Url, Err = Error>
+    {
+        let host = host.try_into()?;
+        let client = Client::new()?;
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/init")?).send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        let init = decoded.get("initialized").and_then(|v| v.as_bool())
+                          .ok_or(Error::Vault("expected init status in response".to_owned()))?;
+        if !init {
+            return Ok(VaultStatus::Uninitialized)
+        }
+
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?).send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        decoded.get("sealed").and_then(|v| v.as_bool())
+               .map(|sealed| if sealed { VaultStatus::Sealed } else { VaultStatus::Unsealed })
+               .ok_or(Error::Vault("expected seal status in response".to_owned()))
+    }
+
+    /// Make an API request to progress through unsealing a vault. Return if already unsealed.
+    #[allow(unused_results)]
+    fn unseal<U, T>(host: U, keys: &[T]) -> Result<()>
+        where U: TryInto<Url, Err = Error>, T: Clone + Into<String>
+    {
+        let host = host.try_into()?;
+        let client = Client::new()?;
+        let res = handle_hyper_response(client.get(host.join("/v1/sys/seal-status")?).send())?;
+        let decoded: Value = parse_vault_response(res)?;
+        let mut sealed = decoded.get("sealed").and_then(|v| v.as_bool())
+                                .ok_or(Error::Vault("expected seal status in response".to_owned()))?;
+        let mut key_iter = keys.iter();
+        if sealed {
+            let total = decoded.get("t").and_then(|v| v.as_u64())
+                               .ok_or(Error::Vault("expected total number of keys in response".to_owned()))?;
+            if keys.len() < total as usize {
+                return Err(Error::Vault(format!("expected at least {} keys for unsealing Vault", total)))
+            }
+        }
+
+        while sealed {
+            let key: String = key_iter.next().unwrap().clone().into();
+            let payload = json!({"key": key});
+            let res = handle_hyper_response(client.put(host.join("/v1/sys/unseal")?)
+                                                  .body(payload.to_string().as_str())
+                                                  .send())?;
+            let decoded: Value = parse_vault_response(res)?;
+            sealed = decoded.get("sealed").and_then(|v| v.as_bool())
+                            .ok_or(Error::Vault("expected seal status in response".to_owned()))?;
+        }
+
+        Ok(())
+    }
+
+    /// Construct a `VaultClient` from an existing vault token
+    pub fn new<U, T, S>(host: U, token: T, unseal_keys: &[S]) -> Result<VaultClient<TokenData>>
+        where U: TryInto<Url, Err = Error> + Clone, T: Clone + Into<String>, S: Clone + Into<String>
+    {
+        VaultClient::unseal(host.clone(), unseal_keys)?;
+        let host = host.try_into()?;
+        let client = Client::new()?;
+        let res = handle_hyper_response(client.get(host.join("/v1/auth/token/lookup-self")?)
+                                              .header(XVaultToken(token.clone().into()))
+                                              .send())?;
         let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
         Ok(VaultClient {
             host: host,
-            token: token,
+            token: token.into(),
             client: client,
+            keys: unseal_keys.iter().map(|s| s.clone().into()).collect(),
             data: Some(decoded),
         })
     }
@@ -533,6 +625,7 @@ impl VaultClient<()> {
             host: host,
             token: token,
             client: client,
+            keys: vec![],
             data: Some(decoded),
         })
     }
@@ -572,6 +665,7 @@ impl VaultClient<()> {
             host: host,
             token: token,
             client: client,
+            keys: vec![],
             data: Some(decoded),
         })
     }
@@ -590,6 +684,7 @@ impl VaultClient<()> {
             host: host,
             token: token.into(),
             client: client,
+            keys: vec![],
             data: None,
         })
     }
@@ -608,7 +703,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let mut client = Client::new(host, token).unwrap();
+    /// let mut client = Client::new(host, token, &[""]).unwrap();
     ///
     /// client.renew().unwrap();
     /// # }
@@ -633,7 +728,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let token_to_renew = "test12345";
     /// client.renew_token(token_to_renew, None).unwrap();
@@ -659,13 +754,13 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, res.client_token).unwrap();
+    /// let mut new_client = Client::new(host, res.client_token, &[""]).unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
@@ -692,7 +787,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// // TODO: Right now, we offer no way to get lease information for a
     /// // secret.
@@ -724,7 +819,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let res = client.lookup().unwrap();
     /// assert!(res.data.unwrap().policies.len() >= 0);
@@ -747,7 +842,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let opts = client::TokenOptions::default()
     ///   .display_name("test_token")
@@ -761,7 +856,7 @@ impl<T> VaultClient<T>
     ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
     /// let res = client.create_token(&opts).unwrap();
     ///
-    /// # let new_client = Client::new(host, res.client_token).unwrap();
+    /// # let new_client = Client::new(host, res.client_token, &[""]).unwrap();
     /// # new_client.revoke().unwrap();
     /// # }
     /// ```
@@ -784,22 +879,16 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
     /// # }
     /// ```
+    #[allow(unused_results)]
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
-        let _ = try!(self.post::<_, String>(&format!("/v1/secret/{}", key.into())[..],
-                                            Some(&format!("{{\"value\": \"{}\"}}",
-                                                          self.escape(value.as_ref()))
-                                                      [..]),
-                                            None));
-        Ok(())
-    }
-
-    fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref().replace("\n", "\\n")
+        let value = json!({"value": value.as_ref()}).to_string();
+        self.post::<_, String>(&format!("/v1/secret/{}", key.into()), Some(&value), None)
+            .map(|_| ())
     }
 
     ///
@@ -811,7 +900,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_get", "world");
     /// assert!(res.is_ok());
     /// let res = client.get_secret("hello_get");
@@ -929,7 +1018,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_delete", "world");
     /// assert!(res.is_ok());
     /// let res = client.delete_secret("hello_delete");
@@ -958,7 +1047,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let res = client.policies().unwrap();
     /// assert!(res.contains(&"root".to_owned()));
