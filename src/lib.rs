@@ -111,12 +111,12 @@ mod tests {
 
     #[test]
     fn it_can_create_a_client() {
-        let _ = Client::new(HOST, TOKEN).unwrap();
+        let _ = Client::new(HOST, TOKEN, &[""]).unwrap();
     }
 
     #[test]
     fn it_can_query_secrets() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client = Client::new(HOST, TOKEN, &[""]).unwrap();
         let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn it_can_write_secrets_with_newline() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client = Client::new(HOST, TOKEN, &[""]).unwrap();
 
         let res = client.set_secret("hello_set", "world\n");
         assert!(res.is_ok());
@@ -135,14 +135,14 @@ mod tests {
 
     #[test]
     fn it_returns_err_on_forbidden() {
-        let client = Client::new(HOST, "test123456");
+        let client = Client::new(HOST, "test123456", &[""]);
         // assert_eq!(Err("Forbidden".to_string()), client);
         assert!(client.is_err());
     }
 
     #[test]
     fn it_can_delete_a_secret() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client = Client::new(HOST, TOKEN, &[""]).unwrap();
 
         let res = client.set_secret("hello_delete", "world");
         assert!(res.is_ok());
@@ -159,7 +159,7 @@ mod tests {
     fn it_can_perform_approle_workflow() {
         use std::collections::HashMap;
 
-        let c = Client::new(HOST, TOKEN).unwrap();
+        let c = Client::new(HOST, TOKEN, &[""]).unwrap();
         let mut body = "{\"type\":\"approle\"}";
         // enable approle auth backend
         let mut res: EndpointResponse<()> =
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     #[cfg(feature = "vault_0.6.2")]
     fn it_can_read_a_wrapped_secret() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client = Client::new(HOST, TOKEN, &[""]).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
         assert!(res.is_ok());
         // wrap the secret's value in `sys/wrapping/unwrap` with a TTL of 2 minutes
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn it_can_store_policies() {
         // use trailing slash for host to ensure Url processing fixes this later
-        let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
+        let c = Client::new("http://127.0.0.1:8200/", TOKEN, &[""]).unwrap();
         let body = "{\"rules\":\"{}\"}";
         // enable approle auth backend
         let res: EndpointResponse<()> =
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     #[cfg(feature = "vault_0.6.1")]
     fn it_can_list_things() {
-        let c = Client::new(HOST, TOKEN).unwrap();
+        let c = Client::new(HOST, TOKEN, &[""]).unwrap();
         let _ =
             c.create_token(&client::TokenOptions::default()
                     .ttl(client::VaultDuration::minutes(1)))

@@ -703,7 +703,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let mut client = Client::new(host, token).unwrap();
+    /// let mut client = Client::new(host, token, &[""]).unwrap();
     ///
     /// client.renew().unwrap();
     /// # }
@@ -728,7 +728,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let token_to_renew = "test12345";
     /// client.renew_token(token_to_renew, None).unwrap();
@@ -754,13 +754,13 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, res.client_token).unwrap();
+    /// let mut new_client = Client::new(host, res.client_token, &[""]).unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
@@ -787,7 +787,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// // TODO: Right now, we offer no way to get lease information for a
     /// // secret.
@@ -819,7 +819,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let res = client.lookup().unwrap();
     /// assert!(res.data.unwrap().policies.len() >= 0);
@@ -842,7 +842,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let opts = client::TokenOptions::default()
     ///   .display_name("test_token")
@@ -856,7 +856,7 @@ impl<T> VaultClient<T>
     ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
     /// let res = client.create_token(&opts).unwrap();
     ///
-    /// # let new_client = Client::new(host, res.client_token).unwrap();
+    /// # let new_client = Client::new(host, res.client_token, &[""]).unwrap();
     /// # new_client.revoke().unwrap();
     /// # }
     /// ```
@@ -879,7 +879,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
     /// # }
@@ -900,7 +900,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_get", "world");
     /// assert!(res.is_ok());
     /// let res = client.get_secret("hello_get");
@@ -1018,7 +1018,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     /// let res = client.set_secret("hello_delete", "world");
     /// assert!(res.is_ok());
     /// let res = client.delete_secret("hello_delete");
@@ -1047,7 +1047,7 @@ impl<T> VaultClient<T>
     /// # fn main() {
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client = Client::new(host, token, &[""]).unwrap();
     ///
     /// let res = client.policies().unwrap();
     /// assert!(res.contains(&"root".to_owned()));
