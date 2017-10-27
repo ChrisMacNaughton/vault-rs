@@ -15,15 +15,19 @@
 
 //! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
 
+extern crate reqwest;
 #[macro_use]
 extern crate hyper;
 #[macro_use]
 extern crate log;
-extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
 pub extern crate chrono;
 pub extern crate url;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 /// vault client
 pub mod client;
@@ -160,13 +164,13 @@ mod tests {
         let mut res: EndpointResponse<()> =
             c.call_endpoint(POST, "sys/auth/approle", None, Some(body))
                 .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
         // make a new approle
         body = "{\"secret_id_ttl\":\"10m\", \"token_ttl\":\"20m\", \"token_max_ttl\":\"30m\", \
                 \"secret_id_num_uses\":40}";
         res = c.call_endpoint(POST, "auth/approle/role/test_role", None, Some(body))
             .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
 
         // let test the properties endpoint while we're here
         assert!(c.get_app_role_properties("test_role").is_ok());
@@ -179,8 +183,8 @@ mod tests {
             EndpointResponse::VaultResponse(res) => res.data.unwrap(),
             _ => panic!("expected vault response, got: {:?}", res),
         };
-        let role_id = data.get("role_id").unwrap();
-        assert!(role_id.len() > 0);
+        let role_id = &data["role_id"];
+        assert!(!role_id.is_empty());
 
         // now get a secret id for this approle
         let res: EndpointResponse<HashMap<String, String>> =
@@ -190,7 +194,7 @@ mod tests {
             EndpointResponse::VaultResponse(res) => res.data.unwrap(),
             _ => panic!("expected vault response, got: {:?}", res),
         };
-        let secret_id = data.get("secret_id").unwrap();
+        let secret_id = &data["secret_id"];
 
         // now finally we can try to actually login!
         let _ = Client::new_app_role(HOST, &role_id[..], Some(&secret_id[..])).unwrap();
@@ -198,7 +202,7 @@ mod tests {
         // clean up by disabling approle auth backend
         let res = c.call_endpoint(DELETE, "sys/auth/approle", None, None)
             .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
     }
 
     #[test]
@@ -211,10 +215,10 @@ mod tests {
         let res = client.get_secret_wrapped("hello_delete_2", "2m").unwrap();
         let wrapping_token = res.wrap_info.unwrap().token;
         // make a new client with the wrapping token
-        let c2 = Client::new_no_lookup(HOST, &wrapping_token).unwrap();
+        let c2 = Client::new_no_lookup(HOST, wrapping_token).unwrap();
         // read the cubbyhole response (can only do this once!)
         let res = c2.get_unwrapped_response().unwrap();
-        assert_eq!(res.data.unwrap().get("value").unwrap(), "second world");
+        assert_eq!(res.data.unwrap()["value"], "second world");
     }
 
     #[test]
@@ -226,11 +230,11 @@ mod tests {
         let res: EndpointResponse<()> =
             c.call_endpoint(PUT, "sys/policy/test_policy_1", None, Some(body))
                 .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
         let res: EndpointResponse<()> =
             c.call_endpoint(PUT, "sys/policy/test_policy_2", None, Some(body))
                 .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
         let client_policies = c.policies().unwrap();
         let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
         let _ = expected_policies.into_iter()
@@ -262,11 +266,11 @@ mod tests {
         let res: EndpointResponse<()> =
             c.call_endpoint(DELETE, "sys/policy/test_policy_1", None, None)
                 .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
         let res: EndpointResponse<()> =
             c.call_endpoint(DELETE, "sys/policy/test_policy_2", None, None)
                 .unwrap();
-        panic_non_empty(res);
+        panic_non_empty(&res);
     }
 
     #[test]
@@ -294,8 +298,8 @@ mod tests {
     }
 
     // helper fn to panic on empty responses
-    fn panic_non_empty(res: EndpointResponse<()>) {
-        match res {
+    fn panic_non_empty(res: &EndpointResponse<()>) {
+        match *res {
             EndpointResponse::Empty => {}
             _ => panic!("expected empty response, received: {:?}", res),
         }
