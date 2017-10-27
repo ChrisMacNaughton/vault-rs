@@ -64,7 +64,8 @@ pub trait TryFrom<T>: Sized {
 }
 
 impl<T, U> TryInto<U> for T
-    where U: TryFrom<T>
+where
+    U: TryFrom<T>,
 {
     type Err = U::Err;
 
@@ -237,7 +238,8 @@ mod tests {
         panic_non_empty(&res);
         let client_policies = c.policies().unwrap();
         let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
-        let _ = expected_policies.into_iter()
+        let _ = expected_policies
+            .into_iter()
             .map(|p| {
                 assert!(client_policies.contains(&p.to_string()));
             })
@@ -277,14 +279,12 @@ mod tests {
     #[cfg(feature = "vault_0.6.1")]
     fn it_can_list_things() {
         let c = Client::new(HOST, TOKEN).unwrap();
-        let _ =
-            c.create_token(&client::TokenOptions::default()
-                    .ttl(client::VaultDuration::minutes(1)))
-                .unwrap();
-        let _ =
-            c.create_token(&client::TokenOptions::default()
-                    .ttl(client::VaultDuration::minutes(1)))
-                .unwrap();
+        let _ = c.create_token(&client::TokenOptions::default().ttl(
+            client::VaultDuration::minutes(1),
+        )).unwrap();
+        let _ = c.create_token(&client::TokenOptions::default().ttl(
+            client::VaultDuration::minutes(1),
+        )).unwrap();
         let res: EndpointResponse<client::ListResponse> =
             c.call_endpoint(LIST, "auth/token/accessors", None, None)
                 .unwrap();
