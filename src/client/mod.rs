@@ -977,14 +977,23 @@ impl<T> VaultClient<T>
                                              wrap_ttl: Option<S2>)
                                              -> Result<Response> {
         let h = self.host.join(endpoint.as_ref())?;
-        let mut req = self.client.get(h);
-        let _ = req.header(XVaultToken(self.token.to_string()));
-        let _ = req.header(header::ContentType::json());
-        if let Some(wrap_ttl) = wrap_ttl {
-            let _ = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        match wrap_ttl {
+            Some(wrap_ttl) => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Get, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .header(XVaultWrapTTL(wrap_ttl.into()))
+                    .send())))
+            },
+            None => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Get, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .send())))
+            }
         }
-
-        Ok(try!(handle_hyper_response(req.send())))
     }
 
     fn delete<S: AsRef<str>>(&self, endpoint: S) -> Result<Response> {
@@ -1001,17 +1010,30 @@ impl<T> VaultClient<T>
                                               wrap_ttl: Option<S2>)
                                               -> Result<Response> {
         let h = self.host.join(endpoint.as_ref())?;
-        let mut req = self.client.post(h);
-        let _ = req.header(XVaultToken(self.token.to_string()));
-        let _ = req.header(header::ContentType::json());
-        if let Some(wrap_ttl) = wrap_ttl {
-            let _ = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        let body = if let Some(body) = body {
+            body.to_string()
+        } else {
+            String::new()
+        };
+        match wrap_ttl{
+            Some(wrap_ttl) => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Post, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .header(XVaultWrapTTL(wrap_ttl.into()))
+                    .body(body)
+                    .send())))
+            }
+            None => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Post, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .body(body)
+                    .send())))
+            }
         }
-        if let Some(b) = body {
-            let _ = req.body(b.to_string());
-        }
-
-        Ok(try!(handle_hyper_response(req.send())))
     }
 
     fn put<S1: AsRef<str>, S2: Into<String>>(&self,
@@ -1020,17 +1042,30 @@ impl<T> VaultClient<T>
                                              wrap_ttl: Option<S2>)
                                              -> Result<Response> {
         let h = self.host.join(endpoint.as_ref())?;
-        let mut req = self.client.put(h);
-        let _ = req.header(XVaultToken(self.token.to_string()));
-        let _ = req.header(header::ContentType::json());
-        if let Some(wrap_ttl) = wrap_ttl {
-            let _ = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        let body = if let Some(body) = body {
+            body.to_string()
+        } else {
+            String::new()
+        };
+        match wrap_ttl{
+            Some(wrap_ttl) => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Put, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .header(XVaultWrapTTL(wrap_ttl.into()))
+                    .body(body)
+                    .send())))
+            }
+            None => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Put, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .body(body)
+                    .send())))
+            }
         }
-        if let Some(b) = body {
-            let _ = req.body(b.to_string());
-        }
-
-        Ok(try!(handle_hyper_response(req.send())))
     }
 
     fn list<S1: AsRef<str>, S2: Into<String>>(&self,
@@ -1039,17 +1074,30 @@ impl<T> VaultClient<T>
                                               wrap_ttl: Option<S2>)
                                               -> Result<Response> {
         let h = self.host.join(endpoint.as_ref())?;
-        let mut req = self.client.request(Method::Extension("LIST".into()), h);
-        let _ = req.header(XVaultToken(self.token.to_string()));
-        let _ = req.header(header::ContentType::json());
-        if let Some(wrap_ttl) = wrap_ttl {
-            let _ = req.header(XVaultWrapTTL(wrap_ttl.into()));
+        let body = if let Some(body) = body {
+            body.to_string()
+        } else {
+            String::new()
+        };
+        match wrap_ttl{
+            Some(wrap_ttl) => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Extension("LIST".into()), h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .header(XVaultWrapTTL(wrap_ttl.into()))
+                    .body(body)
+                    .send())))
+            }
+            None => {
+                Ok(try!(handle_hyper_response(self.client
+                    .request(Method::Put, h)
+                    .header(XVaultToken(self.token.to_string()))
+                    .header(header::ContentType::json())
+                    .body(body)
+                    .send())))
+            }
         }
-        if let Some(b) = body {
-            let _ = req.body(b.to_string());
-        }
-
-        Ok(try!(handle_hyper_response(req.send())))
     }
 }
 
