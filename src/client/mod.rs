@@ -1091,7 +1091,7 @@ impl<T> VaultClient<T>
             }
             None => {
                 Ok(try!(handle_hyper_response(self.client
-                    .request(Method::Put, h)
+                    .request(Method::Extension("LIST".into()), h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .body(body)
