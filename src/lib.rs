@@ -282,9 +282,6 @@ mod tests {
         let _ = c.create_token(&client::TokenOptions::default().ttl(
             client::VaultDuration::minutes(1),
         )).unwrap();
-        let _ = c.create_token(&client::TokenOptions::default().ttl(
-            client::VaultDuration::minutes(1),
-        )).unwrap();
         let res: EndpointResponse<client::ListResponse> =
             c.call_endpoint(LIST, "auth/token/accessors", None, None)
                 .unwrap();
