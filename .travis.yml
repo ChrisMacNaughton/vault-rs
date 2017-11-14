@@ -55,7 +55,7 @@ script:
       if [[ $VAULT_VERSION == 0.6.0 ]]; then
         cargo test --verbose --no-default-features
       elif [[ $VAULT_VERSION == 0.6.1 ]]; then
-        cargo test --verbose --no-default-features --features "vault_0.6.1"
+        cargo test --verbose --no-default-features --features "vault_0_6_1"
       elif [[ $TRAVIS_RUST_VERSION = nightly ]]; then
         cargo test --verbose --features "clippy"
       else

@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0.6.1")]
+    #[cfg(feature = "vault_0_6_1")]
     fn it_can_perform_approle_workflow() {
         use std::collections::HashMap;
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0.6.2")]
+    #[cfg(feature = "vault_0_6_2")]
     fn it_can_read_a_wrapped_secret() {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0.6.1")]
+    #[cfg(feature = "vault_0_6_1")]
     fn it_can_list_things() {
         let c = Client::new(HOST, TOKEN).unwrap();
         let _ = c.create_token(&client::TokenOptions::default().ttl(
