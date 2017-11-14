@@ -3,6 +3,7 @@ use std::io::Read;
 use std::result::Result as StdResult;
 use std::fmt;
 
+use base64;
 use reqwest::{self, header, Client, Method, Response};
 use client::error::{Error, Result};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
@@ -202,6 +203,18 @@ pub struct TokenData {
 #[derive(Deserialize, Serialize, Debug)]
 struct SecretData {
     value: String,
+}
+
+/// Transit decrypted data, used in `VaultResponse`
+#[derive(Deserialize, Serialize, Debug)]
+struct TransitDecryptedData {
+    plaintext: String,
+}
+
+/// Transit encrypted data, used in `VaultResponse`
+#[derive(Deserialize, Serialize, Debug)]
+struct TransitEncryptedData {
+    ciphertext: String,
 }
 
 /// Vault auth
@@ -859,6 +872,74 @@ impl<T> VaultClient<T>
             try!(self.get::<_, String>(&format!("/v1/auth/approle/role/{}", role_name.as_ref()),
                                        None));
         parse_vault_response(res)
+    }
+
+    /// Encrypt a plaintext via Transit secret backend.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    /// let res = client.transit_encrypt(None, "keyname", b"plaintext");
+    /// # }
+    /// ```
+    pub fn transit_encrypt<S1: Into<String>, S2: AsRef<[u8]>>(&self, mountpoint: Option<String>,
+                                                             key: S1, plaintext: S2) -> Result<Vec<u8>> {
+        let path = mountpoint.unwrap_or("transit".to_owned());
+        let encoded_plaintext = base64::encode(plaintext.as_ref());
+        let res = try!(self.post::<_, String>(&format!("/v1/{}/encrypt/{}", path, key.into())[..],
+                                            Some(&format!("{{\"plaintext\": \"{}\"}}",
+                                                          encoded_plaintext)
+                                                      [..]),
+                                            None));
+        let decoded: VaultResponse<TransitEncryptedData> = parse_vault_response(res)?;
+        let payload = match decoded.data {
+            Some(data) => data.ciphertext,
+            _ => return Err(Error::Vault(format!("No ciphertext found in response: `{:#?}`", decoded))),
+        };
+        if !payload.starts_with("vault:v1:") {
+            return Err(Error::Vault(format!("Unrecognized ciphertext format: `{:#?}`", payload)));
+        };
+        let encoded_ciphertext = payload.trim_left_matches("vault:v1:");
+        let encrypted = try!(base64::decode(encoded_ciphertext));
+        Ok(encrypted)
+    }
+
+    /// Decrypt a ciphertext via Transit secret backend.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// # fn main() {
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    /// let res = client.transit_decrypt(None, "keyname", b"\x02af\x61bcb\x55d");
+    /// # }
+    /// ```
+    pub fn transit_decrypt<S1: Into<String>, S2: AsRef<[u8]>>(&self, mountpoint: Option<String>,
+                                                             key: S1, ciphertext: S2) -> Result<Vec<u8>> {
+        let path = mountpoint.unwrap_or("transit".to_owned());
+        let encoded_ciphertext = "vault:v1:".to_owned() + &base64::encode(ciphertext.as_ref());
+        let res = try!(self.post::<_, String>(&format!("/v1/{}/decrypt/{}", path, key.into())[..],
+                                            Some(&format!("{{\"ciphertext\": \"{}\"}}",
+                                                          encoded_ciphertext)
+                                                      [..]),
+                                            None));
+        let decoded: VaultResponse<TransitDecryptedData> = parse_vault_response(res)?;
+        let decrypted = match decoded.data {
+            Some(data) => data.plaintext,
+            _ => return Err(Error::Vault(format!("No plaintext found in response: `{:#?}`", decoded))),
+        };
+        let plaintext = try!(base64::decode(&decrypted));
+        Ok(plaintext)
     }
 
     /// This function is an "escape hatch" of sorts to call any other vault api methods that
