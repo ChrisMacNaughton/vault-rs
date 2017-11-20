@@ -38,5 +38,12 @@ quick_error! {
             display("url parse error: {}", err)
             cause(err)
         }
+        /// `Base64` decode error
+        Base64(err: ::base64::DecodeError) {
+            from()
+                description("base64 decode error")
+                display("base64 decode error: {}", err)
+                cause(err)
+        }
     }
 }

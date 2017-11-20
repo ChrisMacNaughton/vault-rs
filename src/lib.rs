@@ -15,6 +15,7 @@
 
 //! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
 
+extern crate base64;
 extern crate reqwest;
 #[macro_use]
 extern crate hyper;
@@ -292,6 +293,19 @@ mod tests {
             }
             _ => panic!("expected vault response, got: {:?}", res),
         }
+    }
+
+    #[test]
+    fn it_can_encrypt_decrypt_transit() {
+        let key_id = "test-vault-rs";
+        let plaintext = b"data\0to\0encrypt";
+
+        let client = Client::new(HOST, TOKEN).unwrap();
+        let enc_resp = client.transit_encrypt(None, key_id, plaintext);
+        let encrypted = enc_resp.unwrap();
+        let dec_resp = client.transit_decrypt(None, key_id, encrypted);
+        let payload = dec_resp.unwrap();
+        assert_eq!(plaintext, payload.as_slice());
     }
 
     // helper fn to panic on empty responses
