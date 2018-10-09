@@ -1,6 +1,6 @@
 [package]
 name = "hashicorp_vault"
-version = "0.6.1"
+version = "0.7.0"
 authors = [
   "Chris MacNaughton <chmacnaughton@gmail.com>",
   "Christopher Brickley <brickley@gmail.com>"
@@ -26,6 +26,6 @@ optional = true
 version = "^0.0"
 
 [features]
-default = ["vault_0.6.2"]
-"vault_0.6.1" = []
-"vault_0.6.2" = ["vault_0.6.1"]
+default = ["vault_0_6_2"]
+"vault_0_6_1" = []
+"vault_0_6_2" = ["vault_0_6_1"]
