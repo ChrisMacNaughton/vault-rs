@@ -32,8 +32,8 @@ extern crate serde_json;
 
 /// vault client
 pub mod client;
-pub use client::VaultClient as Client;
-pub use client::error::Error;
+pub use crate::client::VaultClient as Client;
+pub use crate::client::error::Error;
 use url::Url;
 
 /// Waiting to stabilize: https://github.com/rust-lang/rust/issues/33417
@@ -61,7 +61,7 @@ pub trait TryFrom<T>: Sized {
     type Err;
 
     /// Performs the conversion.
-    fn try_from(T) -> ::std::result::Result<Self, Self::Err>;
+    fn try_from(_: T) -> ::std::result::Result<Self, Self::Err>;
 }
 
 impl<T, U> TryInto<U> for T
@@ -101,9 +101,9 @@ impl<'a> TryFrom<&'a str> for Url {
 
 #[cfg(test)]
 mod tests {
-    use client::VaultClient as Client;
-    use client::{self, EndpointResponse};
-    use client::HttpVerb::*;
+    use crate::client::VaultClient as Client;
+    use crate::client::{self, EndpointResponse};
+    use crate::client::HttpVerb::*;
 
     /// vault host for testing
     const HOST: &'static str = "http://127.0.0.1:8200";
