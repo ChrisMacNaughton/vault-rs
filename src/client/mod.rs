@@ -504,20 +504,20 @@ impl VaultClient<TokenData> {
     where
         U: TryInto<Url, Err = Error>,
     {
-        let host = r#try!(host.try_into());
+        let host = host.try_into()?;
         let client = Client::new();
         let token = token.into();
-        let res = r#try!(handle_hyper_response(
+        let res = handle_hyper_response(
             client
-                .get(r#try!(host.join("/v1/auth/token/lookup-self")))
+                .get(host.join("/v1/auth/token/lookup-self")?)
                 .header(XVaultToken(token.clone()))
-                .send()
-        ));
+                .send(),
+        )?;
         let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
         Ok(VaultClient {
-            host: host,
-            token: token,
-            client: client,
+            host,
+            token,
+            client,
             data: Some(decoded),
         })
     }
@@ -537,18 +537,18 @@ impl VaultClient<()> {
     where
         U: TryInto<Url, Err = Error>,
     {
-        let host = r#try!(host.try_into());
+        let host = host.try_into()?;
         let client = Client::new();
-        let payload = r#try!(serde_json::to_string(&AppIdPayload {
+        let payload = serde_json::to_string(&AppIdPayload {
             app_id: app_id.into(),
             user_id: user_id.into(),
-        }));
-        let res = r#try!(handle_hyper_response(
+        })?;
+        let res = handle_hyper_response(
             client
-                .post(r#try!(host.join("/v1/auth/app-id/login")))
+                .post(host.join("/v1/auth/app-id/login")?)
                 .body(payload)
-                .send()
-        ));
+                .send(),
+        )?;
         let decoded: VaultResponse<()> = parse_vault_response(res)?;
         let token = match decoded.auth {
             Some(ref auth) => auth.client_token.clone(),
@@ -560,9 +560,9 @@ impl VaultClient<()> {
             }
         };
         Ok(VaultClient {
-            host: host,
-            token: token,
-            client: client,
+            host,
+            token,
+            client,
             data: Some(decoded),
         })
     }
@@ -579,22 +579,22 @@ impl VaultClient<()> {
         R: Into<String>,
         S: Into<String>,
     {
-        let host = r#try!(host.try_into());
+        let host = host.try_into()?;
         let client = Client::new();
         let secret_id = match secret_id {
             Some(s) => Some(s.into()),
             None => None,
         };
-        let payload = r#try!(serde_json::to_string(&AppRolePayload {
+        let payload = serde_json::to_string(&AppRolePayload {
             role_id: role_id.into(),
-            secret_id: secret_id,
-        }));
-        let res = r#try!(handle_hyper_response(
+            secret_id,
+        })?;
+        let res = handle_hyper_response(
             client
-                .post(r#try!(host.join("/v1/auth/approle/login")))
+                .post(host.join("/v1/auth/approle/login")?)
                 .body(payload)
-                .send()
-        ));
+                .send(),
+        )?;
         let decoded: VaultResponse<()> = parse_vault_response(res)?;
         let token = match decoded.auth {
             Some(ref auth) => auth.client_token.clone(),
@@ -606,9 +606,9 @@ impl VaultClient<()> {
             }
         };
         Ok(VaultClient {
-            host: host,
-            token: token,
-            client: client,
+            host,
+            token,
+            client,
             data: Some(decoded),
         })
     }
@@ -623,11 +623,11 @@ impl VaultClient<()> {
         U: TryInto<Url, Err = Error>,
     {
         let client = Client::new();
-        let host = r#try!(host.try_into());
+        let host = host.try_into()?;
         Ok(VaultClient {
-            host: host,
+            host,
             token: token.into(),
-            client: client,
+            client,
             data: None,
         })
     }
@@ -644,18 +644,17 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let mut client = Client::new(host, token).unwrap();
     ///
     /// client.renew().unwrap();
-    /// # }
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew(&mut self) -> Result<()> {
-        let res = r#try!(self.post::<_, String>("/v1/auth/token/renew-self", None, None));
+        let res = self.post::<_, String>("/v1/auth/token/renew-self", None, None)?;
         let vault_res: VaultResponse<T> = parse_vault_response(res)?;
         if let Some(ref mut data) = self.data {
             data.auth = vault_res.auth;
@@ -669,23 +668,20 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     ///
     /// let token_to_renew = "test12345";
     /// client.renew_token(token_to_renew, None).unwrap();
-    /// # }
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew_token<S: AsRef<str>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
-        let body = r#try!(serde_json::to_string(&RenewOptions {
-            increment: increment
-        }));
+        let body = serde_json::to_string(&RenewOptions { increment })?;
         let url = format!("/v1/auth/token/renew/{}", token.as_ref());
-        let res = r#try!(self.post::<_, String>(&url, Some(&body), None));
+        let res = self.post::<_, String>(&url, Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         vault_res
             .auth
@@ -698,7 +694,7 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::{client, Client};
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
@@ -713,7 +709,6 @@ where
     ///
     /// // Revoke all our dynamic credentials with a single command.
     /// new_client.revoke().unwrap();
-    /// # }
     /// ```
     ///
     /// Note that we consume our `self` parameter, so you cannot use the
@@ -721,7 +716,7 @@ where
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn revoke(self) -> Result<()> {
-        let _ = r#try!(self.post::<_, String>("/v1/auth/token/revoke-self", None, None));
+        let _ = self.post::<_, String>("/v1/auth/token/revoke-self", None, None)?;
         Ok(())
     }
 
@@ -731,7 +726,7 @@ where
     /// ```no_run
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
@@ -741,7 +736,6 @@ where
     /// let lease_id: String = unimplemented!();
     ///
     /// client.renew_lease(lease_id, None).unwrap();
-    /// # }
     /// ```
     ///
     /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
@@ -750,14 +744,12 @@ where
         lease_id: S,
         increment: Option<u64>,
     ) -> Result<VaultResponse<()>> {
-        let body = r#try!(serde_json::to_string(&RenewOptions {
-            increment: increment
-        }));
-        let res = r#try!(self.put::<_, String>(
+        let body = serde_json::to_string(&RenewOptions { increment })?;
+        let res = self.put::<_, String>(
             &format!("/v1/sys/renew/{}", lease_id.into()),
             Some(&body),
-            None
-        ));
+            None,
+        )?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         Ok(vault_res)
     }
@@ -768,19 +760,18 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     ///
     /// let res = client.lookup().unwrap();
     /// assert!(res.data.unwrap().policies.len() >= 0);
-    /// # }
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn lookup(&self) -> Result<VaultResponse<TokenData>> {
-        let res = r#try!(self.get::<_, String>("/v1/auth/token/lookup-self", None));
+        let res = self.get::<_, String>("/v1/auth/token/lookup-self", None)?;
         let vault_res: VaultResponse<TokenData> = parse_vault_response(res)?;
         Ok(vault_res)
     }
@@ -791,7 +782,7 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::{client, Client};
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
@@ -810,13 +801,12 @@ where
     ///
     /// # let new_client = Client::new(host, res.client_token).unwrap();
     /// # new_client.revoke().unwrap();
-    /// # }
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn create_token(&self, opts: &TokenOptions) -> Result<Auth> {
-        let body = r#try!(serde_json::to_string(opts));
-        let res = r#try!(self.post::<_, String>("/v1/auth/token/create", Some(&body), None));
+        let body = serde_json::to_string(opts)?;
+        let res = self.post::<_, String>("/v1/auth/token/create", Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         vault_res
             .auth
@@ -829,20 +819,19 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
-    /// # }
     /// ```
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
-        let _ = r#try!(self.post::<_, String>(
+        let _ = self.post::<_, String>(
             &format!("/v1/secret/{}", key.into())[..],
             Some(&format!("{{\"value\": \"{}\"}}", self.escape(value.as_ref()))[..]),
-            None
-        ));
+            None,
+        )?;
         Ok(())
     }
 
@@ -856,7 +845,7 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
@@ -865,10 +854,9 @@ where
     /// let res = client.get_secret("hello_get");
     /// assert!(res.is_ok());
     /// assert_eq!(res.unwrap(), "world");
-    /// # }
     /// ```
     pub fn get_secret<S: AsRef<str>>(&self, key: S) -> Result<String> {
-        let res = r#try!(self.get::<_, String>(&format!("/v1/secret/{}", key.as_ref())[..], None));
+        let res = self.get::<_, String>(&format!("/v1/secret/{}", key.as_ref())[..], None)?;
         let decoded: VaultResponse<SecretData> = parse_vault_response(res)?;
         match decoded.data {
             Some(data) => Ok(data.value),
@@ -886,10 +874,10 @@ where
         key: S1,
         wrap_ttl: S2,
     ) -> Result<VaultResponse<()>> {
-        let res = r#try!(self.get(
+        let res = self.get(
             &format!("/v1/secret/{}", key.as_ref())[..],
-            Some(wrap_ttl.as_ref())
-        ));
+            Some(wrap_ttl.as_ref()),
+        )?;
         parse_vault_response(res)
     }
 
@@ -900,7 +888,7 @@ where
     /// returned as a `HashMap<String, String>`.
     #[cfg(feature = "vault_0_6_2")]
     pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
-        let res = r#try!(self.post::<_, String>("/v1/sys/wrapping/unwrap", None, None));
+        let res = self.post::<_, String>("/v1/sys/wrapping/unwrap", None, None)?;
         parse_vault_response(res)
     }
 
@@ -910,10 +898,10 @@ where
         &self,
         role_name: S,
     ) -> Result<VaultResponse<AppRoleProperties>> {
-        let res = r#try!(self.get::<_, String>(
+        let res = self.get::<_, String>(
             &format!("/v1/auth/approle/role/{}", role_name.as_ref()),
-            None
-        ));
+            None,
+        )?;
         parse_vault_response(res)
     }
 
@@ -924,12 +912,11 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     /// let res = client.transit_encrypt(None, "keyname", b"plaintext");
-    /// # }
     /// ```
     pub fn transit_encrypt<S1: Into<String>, S2: AsRef<[u8]>>(
         &self,
@@ -937,13 +924,13 @@ where
         key: S1,
         plaintext: S2,
     ) -> Result<Vec<u8>> {
-        let path = mountpoint.unwrap_or("transit".to_owned());
+        let path = mountpoint.unwrap_or_else(|| "transit".to_owned());
         let encoded_plaintext = base64::encode(plaintext.as_ref());
-        let res = r#try!(self.post::<_, String>(
+        let res = self.post::<_, String>(
             &format!("/v1/{}/encrypt/{}", path, key.into())[..],
             Some(&format!("{{\"plaintext\": \"{}\"}}", encoded_plaintext)[..]),
-            None
-        ));
+            None,
+        )?;
         let decoded: VaultResponse<TransitEncryptedData> = parse_vault_response(res)?;
         let payload = match decoded.data {
             Some(data) => data.ciphertext,
@@ -961,7 +948,7 @@ where
             )));
         };
         let encoded_ciphertext = payload.trim_start_matches("vault:v1:");
-        let encrypted = r#try!(base64::decode(encoded_ciphertext));
+        let encrypted = base64::decode(encoded_ciphertext)?;
         Ok(encrypted)
     }
 
@@ -972,12 +959,11 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     /// let res = client.transit_decrypt(None, "keyname", b"\x02af\x61bcb\x55d");
-    /// # }
     /// ```
     pub fn transit_decrypt<S1: Into<String>, S2: AsRef<[u8]>>(
         &self,
@@ -985,13 +971,13 @@ where
         key: S1,
         ciphertext: S2,
     ) -> Result<Vec<u8>> {
-        let path = mountpoint.unwrap_or("transit".to_owned());
+        let path = mountpoint.unwrap_or_else(|| "transit".to_owned());
         let encoded_ciphertext = "vault:v1:".to_owned() + &base64::encode(ciphertext.as_ref());
-        let res = r#try!(self.post::<_, String>(
+        let res = self.post::<_, String>(
             &format!("/v1/{}/decrypt/{}", path, key.into())[..],
             Some(&format!("{{\"ciphertext\": \"{}\"}}", encoded_ciphertext)[..]),
-            None
-        ));
+            None,
+        )?;
         let decoded: VaultResponse<TransitDecryptedData> = parse_vault_response(res)?;
         let decrypted = match decoded.data {
             Some(data) => data.plaintext,
@@ -1002,7 +988,7 @@ where
                 )))
             }
         };
-        let plaintext = r#try!(base64::decode(&decrypted));
+        let plaintext = base64::decode(&decrypted)?;
         Ok(plaintext)
     }
 
@@ -1023,23 +1009,23 @@ where
         let url = format!("/v1/{}", endpoint);
         match http_verb {
             HttpVerb::GET => {
-                let mut res = r#try!(self.get(&url, wrap_ttl));
+                let mut res = self.get(&url, wrap_ttl)?;
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::POST => {
-                let mut res = r#try!(self.post(&url, body, wrap_ttl));
+                let mut res = self.post(&url, body, wrap_ttl)?;
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::PUT => {
-                let mut res = r#try!(self.put(&url, body, wrap_ttl));
+                let mut res = self.put(&url, body, wrap_ttl)?;
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::DELETE => {
-                let mut res = r#try!(self.delete(&url));
+                let mut res = self.delete(&url)?;
                 parse_endpoint_response(&mut res)
             }
             HttpVerb::LIST => {
-                let mut res = r#try!(self.list(&url, body, wrap_ttl));
+                let mut res = self.list(&url, body, wrap_ttl)?;
                 parse_endpoint_response(&mut res)
             }
         }
@@ -1054,12 +1040,7 @@ where
         wrap_ttl: &str,
         body: Option<&str>,
     ) -> Result<String> {
-        let res = r#try!(self.call_endpoint::<()>(
-            http_verb,
-            endpoint.as_ref(),
-            Some(wrap_ttl.as_ref()),
-            body
-        ));
+        let res = self.call_endpoint::<()>(http_verb, endpoint.as_ref(), Some(wrap_ttl), body)?;
         match res {
             EndpointResponse::VaultResponse(res) => match res.wrap_info {
                 Some(wrap_info) => Ok(wrap_info.token),
@@ -1078,7 +1059,7 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
@@ -1086,18 +1067,16 @@ where
     /// assert!(res.is_ok());
     /// let res = client.delete_secret("hello_delete");
     /// assert!(res.is_ok());
-    /// # }
     /// ```
     pub fn delete_secret(&self, key: &str) -> Result<()> {
-        let _ = r#try!(self.delete(&format!("/v1/secret/{}", key)[..]));
+        let _ = self.delete(&format!("/v1/secret/{}", key)[..])?;
         Ok(())
     }
 
     /// Get postgresql secret backend
     /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
     pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlLogin>> {
-        let res =
-            r#try!(self.get::<_, String>(&format!("/v1/postgresql/creds/{}", name)[..], None));
+        let res = self.get::<_, String>(&format!("/v1/postgresql/creds/{}", name)[..], None)?;
         let decoded: VaultResponse<PostgresqlLogin> = parse_vault_response(res)?;
         Ok(decoded)
     }
@@ -1108,19 +1087,18 @@ where
     /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
-    /// # fn main() {
+    ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     ///
     /// let res = client.policies().unwrap();
     /// assert!(res.contains(&"root".to_owned()));
-    /// # }
     /// ```
     ///
     /// [/sys/policy]: https://www.vaultproject.io/docs/http/sys-policy.html
     pub fn policies(&self) -> Result<Vec<String>> {
-        let res = r#try!(self.get::<_, String>("/v1/sys/policy", None));
+        let res = self.get::<_, String>("/v1/sys/policy", None)?;
         let decoded: PoliciesResponse = parse_vault_response(res)?;
         Ok(decoded.policies)
     }
@@ -1132,32 +1110,32 @@ where
     ) -> Result<Response> {
         let h = self.host.join(endpoint.as_ref())?;
         match wrap_ttl {
-            Some(wrap_ttl) => Ok(r#try!(handle_hyper_response(
+            Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Get, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .header(XVaultWrapTTL(wrap_ttl.into()))
-                    .send()
-            ))),
-            None => Ok(r#try!(handle_hyper_response(
+                    .send(),
+            )?),
+            None => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Get, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
-                    .send()
-            ))),
+                    .send(),
+            )?),
         }
     }
 
     fn delete<S: AsRef<str>>(&self, endpoint: S) -> Result<Response> {
-        Ok(r#try!(handle_hyper_response(
+        Ok(handle_hyper_response(
             self.client
-                .request(Method::Delete, r#try!(self.host.join(endpoint.as_ref())))
+                .request(Method::Delete, self.host.join(endpoint.as_ref())?)
                 .header(XVaultToken(self.token.to_string()))
                 .header(header::ContentType::json())
-                .send()
-        )))
+                .send(),
+        )?)
     }
 
     fn post<S1: AsRef<str>, S2: Into<String>>(
@@ -1173,23 +1151,23 @@ where
             String::new()
         };
         match wrap_ttl {
-            Some(wrap_ttl) => Ok(r#try!(handle_hyper_response(
+            Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Post, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .header(XVaultWrapTTL(wrap_ttl.into()))
                     .body(body)
-                    .send()
-            ))),
-            None => Ok(r#try!(handle_hyper_response(
+                    .send(),
+            )?),
+            None => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Post, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .body(body)
-                    .send()
-            ))),
+                    .send(),
+            )?),
         }
     }
 
@@ -1206,23 +1184,23 @@ where
             String::new()
         };
         match wrap_ttl {
-            Some(wrap_ttl) => Ok(r#try!(handle_hyper_response(
+            Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Put, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .header(XVaultWrapTTL(wrap_ttl.into()))
                     .body(body)
-                    .send()
-            ))),
-            None => Ok(r#try!(handle_hyper_response(
+                    .send(),
+            )?),
+            None => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Put, h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .body(body)
-                    .send()
-            ))),
+                    .send(),
+            )?),
         }
     }
 
@@ -1239,30 +1217,30 @@ where
             String::new()
         };
         match wrap_ttl {
-            Some(wrap_ttl) => Ok(r#try!(handle_hyper_response(
+            Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Extension("LIST".into()), h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .header(XVaultWrapTTL(wrap_ttl.into()))
                     .body(body)
-                    .send()
-            ))),
-            None => Ok(r#try!(handle_hyper_response(
+                    .send(),
+            )?),
+            None => Ok(handle_hyper_response(
                 self.client
                     .request(Method::Extension("LIST".into()), h)
                     .header(XVaultToken(self.token.to_string()))
                     .header(header::ContentType::json())
                     .body(body)
-                    .send()
-            ))),
+                    .send(),
+            )?),
         }
     }
 }
 
 /// helper fn to check `Response` for success
 fn handle_hyper_response(res: StdResult<Response, reqwest::Error>) -> Result<Response> {
-    let mut res = r#try!(res);
+    let mut res = res?;
     if res.status().is_success() {
         Ok(res)
     } else {
