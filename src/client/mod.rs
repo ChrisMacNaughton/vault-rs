@@ -905,7 +905,7 @@ impl<T> VaultClient<T>
         if !payload.starts_with("vault:v1:") {
             return Err(Error::Vault(format!("Unrecognized ciphertext format: `{:#?}`", payload)));
         };
-        let encoded_ciphertext = payload.trim_left_matches("vault:v1:");
+        let encoded_ciphertext = payload.trim_start_matches("vault:v1:");
         let encrypted = try!(base64::decode(encoded_ciphertext));
         Ok(encrypted)
     }
