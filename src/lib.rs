@@ -108,9 +108,9 @@ mod tests {
     use crate::client::{self, EndpointResponse};
 
     /// vault host for testing
-    const HOST: &'static str = "http://127.0.0.1:8200";
+    const HOST: &str = "http://127.0.0.1:8200";
     /// root token needed for testing
-    const TOKEN: &'static str = "test12345";
+    const TOKEN: &str = "test12345";
 
     #[test]
     fn it_can_create_a_client() {
@@ -244,9 +244,9 @@ mod tests {
         let client_policies = c.policies().unwrap();
         let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
         let _ = expected_policies
-            .into_iter()
+            .iter()
             .map(|p| {
-                assert!(client_policies.contains(&p.to_string()));
+                assert!(client_policies.contains(&(*p).to_string()));
             })
             .last();
         let token_name = "policy_test_token".to_string();
