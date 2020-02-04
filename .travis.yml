@@ -6,7 +6,7 @@ addons:
       - libelf-dev
       - libdw-dev
       - unzip
-dist: trusty
+dist: bionic
 language: rust
 rust:
 - nightly
