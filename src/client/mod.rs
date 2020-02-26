@@ -352,6 +352,15 @@ struct RenewTokenOptions {
     increment: Option<u64>,
 }
 
+/// Options that we use when renewing leases.
+#[derive(Deserialize, Serialize, Debug)]
+struct RenewLeaseOptions {
+    lease_id: String,
+    /// The amount of time for which to renew the lease.  May be ignored or
+    /// overriden by vault.
+    increment: Option<u64>,
+}
+
 /// Options for creating a token.  This is intended to be used as a
 /// "builder"-style interface, where you create a new `TokenOptions`
 /// object, call a bunch of chained methods on it, and then pass the result
@@ -722,7 +731,7 @@ where
     }
 
     /// Renew a specific lease that your token controls.  Corresponds to
-    /// [`/v1/sys/renew`][renew].
+    /// [`/v1/sys/lease`][renew].
     ///
     /// ```no_run
     /// # extern crate hashicorp_vault as vault;
@@ -745,9 +754,9 @@ where
         lease_id: S,
         increment: Option<u64>,
     ) -> Result<VaultResponse<()>> {
-        let body = serde_json::to_string(&RenewOptions { increment })?;
+        let body = serde_json::to_string(&RenewLeaseOptions { lease_id: lease_id.into(), increment })?;
         let res = self.put::<_, String>(
-            &format!("/v1/sys/renew/{}", lease_id.into()),
+            "/v1/sys/leases/renew",
             Some(&body),
             None,
         )?;
