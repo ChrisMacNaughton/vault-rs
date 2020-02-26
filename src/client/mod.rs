@@ -733,7 +733,7 @@ where
     /// Renew a specific lease that your token controls.  Corresponds to
     /// [`/v1/sys/lease`][renew].
     ///
-    /// ```
+    /// ```no_run
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
     /// use serde::Deserialize;
@@ -1094,7 +1094,7 @@ where
     }
 
     /// Get creds from an arbitrary backend
-    /// ```
+    /// ```no_run
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
     /// use serde::Deserialize;
