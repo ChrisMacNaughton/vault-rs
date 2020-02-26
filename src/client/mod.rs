@@ -733,19 +733,23 @@ where
     /// Renew a specific lease that your token controls.  Corresponds to
     /// [`/v1/sys/lease`][renew].
     ///
-    /// ```no_run
+    /// ```
     /// # extern crate hashicorp_vault as vault;
     /// # use vault::Client;
+    /// use serde::Deserialize;
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
     /// let client = Client::new(host, token).unwrap();
     ///
-    /// // TODO: Right now, we offer no way to get lease information for a
-    /// // secret.
-    /// let lease_id: String = unimplemented!();
+    /// #[derive(Deserialize)]
+    /// struct PacketKey {
+    ///   api_key_token: String,
+    /// }
     ///
-    /// client.renew_lease(lease_id, None).unwrap();
+    /// let res = client.get_secret_engine_creds::<PacketKey>("packet", "1h-read-only-user").unwrap();
+    ///
+    /// client.renew_lease(res.lease_id.unwrap(), None).unwrap();
     /// ```
     ///
     /// [renew]: https://www.vaultproject.io/docs/http/sys-renew.html
