@@ -1086,8 +1086,32 @@ where
     /// Get postgresql secret backend
     /// https://www.vaultproject.io/docs/secrets/postgresql/index.html
     pub fn get_postgresql_backend(&self, name: &str) -> Result<VaultResponse<PostgresqlLogin>> {
-        let res = self.get::<_, String>(&format!("/v1/postgresql/creds/{}", name)[..], None)?;
-        let decoded: VaultResponse<PostgresqlLogin> = parse_vault_response(res)?;
+        self.get_secret_engine_creds("postgresql", name)
+    }
+
+    /// Get creds from an arbitrary backend
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// use serde::Deserialize;
+    ///
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// #[derive(Deserialize)]
+    /// struct PacketKey {
+    ///   api_key_token: String,
+    /// }
+    ///
+    /// let res = client.get_secret_engine_creds::<PacketKey>("packet", "1h-read-only-user").unwrap();
+    /// let api_token = res.data.unwrap().api_key_token;
+    /// ```
+    pub fn get_secret_engine_creds<K>(&self, backend: &str, name: &str) -> Result<VaultResponse<K>>
+        where K: DeserializeOwned
+    {
+        let res = self.get::<_, String>(&format!("/v1/{}/creds/{}", backend, name)[..], None)?;
+        let decoded: VaultResponse<K> = parse_vault_response(res)?;
         Ok(decoded)
     }
 
