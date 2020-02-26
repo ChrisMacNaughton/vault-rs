@@ -344,9 +344,9 @@ pub struct ListResponse {
     pub keys: Vec<String>,
 }
 
-/// Options that we use when renewing leases on tokens and secrets.
+/// Options that we use when renewing tokens.
 #[derive(Deserialize, Serialize, Debug)]
-struct RenewOptions {
+struct RenewTokenOptions {
     /// The amount of time for which to renew the lease.  May be ignored or
     /// overriden by vault.
     increment: Option<u64>,
@@ -680,7 +680,7 @@ where
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
     pub fn renew_token<S: AsRef<str>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
-        let body = serde_json::to_string(&RenewOptions { increment })?;
+        let body = serde_json::to_string(&RenewTokenOptions { increment })?;
         let url = format!("/v1/auth/token/renew/{}", token.as_ref());
         let res = self.post::<_, String>(&url, Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
