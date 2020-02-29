@@ -6,12 +6,13 @@ addons:
       - libelf-dev
       - libdw-dev
       - unzip
-dist: trusty
+dist: bionic
 language: rust
 rust:
 - nightly
 - beta
 - stable
+- 1.36.0
 matrix:
   allow_failures:
   - rust: nightly
