@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use crate::client::error::{Error, Result};
 use base64;
-use reqwest::{self, header::CONTENT_TYPE, Client, Method, Response};
+use reqwest::{self, blocking::Client, blocking::Response, header::CONTENT_TYPE, Method};
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -164,7 +164,7 @@ pub struct VaultClient<T> {
     pub host: Url,
     /// Token to access vault
     pub token: String,
-    /// `hyper::Client`
+    /// `reqwest::Client`
     client: Client,
     /// Data
     pub data: Option<VaultResponse<T>>,
@@ -493,21 +493,6 @@ pub enum EndpointResponse<D> {
     Empty,
 }
 
-header! {
-    /// Token used to authenticate with the vault API
-    (XVaultToken, "X-Vault-Token") => [String]
-}
-header! {
-    /// The TTL for the token is set by the client using the `X-Vault-Wrap-TTL` header and can be
-    /// either an integer number of seconds or a string duration of seconds (15s), minutes (20m),
-    /// or hours (25h). When using the Vault CLI, you can set this via the -wrap-ttl parameter.
-    /// Response wrapping is per-request; it is the presence of a value in this header that
-    /// activates wrapping of the response.
-    ///
-    /// See: https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
-    (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
-}
-
 impl VaultClient<TokenData> {
     /// Construct a `VaultClient` from an existing vault token
     pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
@@ -519,7 +504,7 @@ impl VaultClient<TokenData> {
         let token = token.into();
         let res = handle_hyper_response(
             client
-                .get(host.join("/v1/auth/token/lookup-self")?)
+                .get(host.join("/v1/auth/token/lookup-self")?.as_str())
                 .header("X-Vault-Token", token.clone())
                 .send(),
         )?;
@@ -555,7 +540,7 @@ impl VaultClient<()> {
         })?;
         let res = handle_hyper_response(
             client
-                .post(host.join("/v1/auth/app-id/login")?)
+                .post(host.join("/v1/auth/app-id/login")?.as_str())
                 .body(payload)
                 .send(),
         )?;
@@ -601,7 +586,7 @@ impl VaultClient<()> {
         })?;
         let res = handle_hyper_response(
             client
-                .post(host.join("/v1/auth/approle/login")?)
+                .post(host.join("/v1/auth/approle/login")?.as_str())
                 .body(payload)
                 .send(),
         )?;
@@ -758,12 +743,11 @@ where
         lease_id: S,
         increment: Option<u64>,
     ) -> Result<VaultResponse<()>> {
-        let body = serde_json::to_string(&RenewLeaseOptions { lease_id: lease_id.into(), increment })?;
-        let res = self.put::<_, String>(
-            "/v1/sys/leases/renew",
-            Some(&body),
-            None,
-        )?;
+        let body = serde_json::to_string(&RenewLeaseOptions {
+            lease_id: lease_id.into(),
+            increment,
+        })?;
+        let res = self.put::<_, String>("/v1/sys/leases/renew", Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         Ok(vault_res)
     }
@@ -1112,7 +1096,8 @@ where
     /// let api_token = res.data.unwrap().api_key_token;
     /// ```
     pub fn get_secret_engine_creds<K>(&self, backend: &str, name: &str) -> Result<VaultResponse<K>>
-        where K: DeserializeOwned
+    where
+        K: DeserializeOwned,
     {
         let res = self.get::<_, String>(&format!("/v1/{}/creds/{}", backend, name)[..], None)?;
         let decoded: VaultResponse<K> = parse_vault_response(res)?;
@@ -1150,7 +1135,7 @@ where
         match wrap_ttl {
             Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::GET, h)
+                    .request(Method::GET, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .header("X-Vault-Wrap-TTL", wrap_ttl.into())
@@ -1158,7 +1143,7 @@ where
             )?),
             None => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::GET, h)
+                    .request(Method::GET, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .send(),
@@ -1169,7 +1154,7 @@ where
     fn delete<S: AsRef<str>>(&self, endpoint: S) -> Result<Response> {
         Ok(handle_hyper_response(
             self.client
-                .request(Method::DELETE, self.host.join(endpoint.as_ref())?)
+                .request(Method::DELETE, self.host.join(endpoint.as_ref())?.as_str())
                 .header("X-Vault-Token", self.token.to_string())
                 .header(CONTENT_TYPE, "application/json")
                 .send(),
@@ -1191,7 +1176,7 @@ where
         match wrap_ttl {
             Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::POST, h)
+                    .request(Method::POST, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .header("X-Vault-Wrap-TTL", wrap_ttl.into())
@@ -1200,7 +1185,7 @@ where
             )?),
             None => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::POST, h)
+                    .request(Method::POST, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .body(body)
@@ -1224,7 +1209,7 @@ where
         match wrap_ttl {
             Some(wrap_ttl) => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::PUT, h)
+                    .request(Method::PUT, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .header("X-Vault-Wrap-TTL", wrap_ttl.into())
@@ -1233,7 +1218,7 @@ where
             )?),
             None => Ok(handle_hyper_response(
                 self.client
-                    .request(Method::PUT, h)
+                    .request(Method::PUT, h.as_str())
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
                     .body(body)
@@ -1259,7 +1244,7 @@ where
                 self.client
                     .request(
                         Method::from_str("LIST".into()).expect("Failed to parse LIST to Method"),
-                        h,
+                        h.as_str(),
                     )
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")
@@ -1271,7 +1256,7 @@ where
                 self.client
                     .request(
                         Method::from_str("LIST".into()).expect("Failed to parse LIST to Method"),
-                        h,
+                        h.as_str(),
                     )
                     .header("X-Vault-Token", self.token.to_string())
                     .header(CONTENT_TYPE, "application/json")

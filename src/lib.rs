@@ -18,9 +18,8 @@
 //! Client API for interacting with [Vault](https://www.vaultproject.io/docs/http/index.html)
 
 extern crate base64;
-extern crate reqwest;
-#[macro_use]
 extern crate hyper;
+extern crate reqwest;
 #[macro_use]
 extern crate log;
 #[macro_use]
