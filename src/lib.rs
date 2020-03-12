@@ -226,7 +226,8 @@ mod tests {
     }
 
     #[test]
-    fn it_can_store_policies() {
+    #[cfg(feature = "vault_0_6_2")]
+    fn it_can_store_policies_v_0_6_2() {
         // use trailing slash for host to ensure Url processing fixes this later
         let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
         let body = "{\"rules\":\"{}\"}";
@@ -278,6 +279,59 @@ mod tests {
         panic_non_empty(&res);
     }
 
+    #[test]
+    #[cfg(feature = "vault_1_3")]
+    fn it_can_store_policies_v_1_3() {
+        // use trailing slash for host to ensure Url processing fixes this later
+        let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
+        let body = "{\"policy\":\"{}\"}";
+        // enable approle auth backend
+        let res: EndpointResponse<()> = c
+            .call_endpoint(PUT, "sys/policy/test_policy_1", None, Some(body))
+            .unwrap();
+        panic_non_empty(&res);
+        let res: EndpointResponse<()> = c
+            .call_endpoint(PUT, "sys/policy/test_policy_2", None, Some(body))
+            .unwrap();
+        panic_non_empty(&res);
+        let client_policies = c.policies().unwrap();
+        let expected_policies = ["default", "test_policy_1", "test_policy_2", "root"];
+        let _ = expected_policies
+            .iter()
+            .map(|p| {
+                assert!(client_policies.contains(&(*p).to_string()));
+            })
+            .last();
+        let token_name = "policy_test_token".to_string();
+        let token_opts = client::TokenOptions::default()
+            .policies(vec!["test_policy_1", "test_policy_2"].into_iter())
+            .default_policy(false)
+            .id(&token_name[..])
+            .ttl(client::VaultDuration::minutes(1));
+        let _ = c.create_token(&token_opts).unwrap();
+        let body = format!("{{\"token\":\"{}\"}}", &token_name);
+        let res: EndpointResponse<client::TokenData> = c
+            .call_endpoint(POST, "auth/token/lookup", None, Some(&body))
+            .unwrap();
+        match res {
+            EndpointResponse::VaultResponse(res) => {
+                let data = res.data.unwrap();
+                let mut policies = data.policies;
+                policies.sort();
+                assert_eq!(policies, ["test_policy_1", "test_policy_2"]);
+            }
+            _ => panic!("expected vault response, got: {:?}", res),
+        }
+        // clean-up
+        let res: EndpointResponse<()> = c
+            .call_endpoint(DELETE, "sys/policy/test_policy_1", None, None)
+            .unwrap();
+        panic_non_empty(&res);
+        let res: EndpointResponse<()> = c
+            .call_endpoint(DELETE, "sys/policy/test_policy_2", None, None)
+            .unwrap();
+        panic_non_empty(&res);
+    }
     #[test]
     #[cfg(feature = "vault_0_6_1")]
     fn it_can_list_things() {

@@ -347,6 +347,9 @@ pub struct ListResponse {
 /// Options that we use when renewing tokens.
 #[derive(Deserialize, Serialize, Debug)]
 struct RenewTokenOptions {
+    /// Token to renew.
+    #[cfg(feature = "vault_1_3")]
+    token: String,
     /// The amount of time for which to renew the lease.  May be ignored or
     /// overriden by vault.
     increment: Option<u64>,
@@ -673,9 +676,41 @@ where
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
+    #[cfg(feature = "vault_0_6_2")]
     pub fn renew_token<S: AsRef<str>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
         let body = serde_json::to_string(&RenewTokenOptions { increment })?;
         let url = format!("/v1/auth/token/renew/{}", token.as_ref());
+        let res = self.post::<_, String>(&url, Some(&body), None)?;
+        let vault_res: VaultResponse<()> = parse_vault_response(res)?;
+        vault_res
+            .auth
+            .ok_or_else(|| Error::Vault("No auth data returned while renewing token".to_owned()))
+    }
+
+    /// Renew the lease for the specified token.  Requires `root`
+    /// privileges.  Corresponds to [`/auth/token/renew[/token]`][token].
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    ///
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    ///
+    /// let token_to_renew = "test12345";
+    /// client.renew_token(token_to_renew, None).unwrap();
+    /// ```
+    ///
+    /// [token]: https://www.vaultproject.io/docs/auth/token.html
+    #[cfg(feature = "vault_1_3")]
+    pub fn renew_token<S: AsRef<str>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
+        let body = serde_json::to_string(&RenewTokenOptions {
+            token: token.as_ref().to_string(),
+            increment: increment,
+        })?;
+        let url = format!("/v1/auth/token/renew");
+
         let res = self.post::<_, String>(&url, Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         vault_res
