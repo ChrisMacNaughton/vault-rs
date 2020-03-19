@@ -103,6 +103,8 @@ mod tests {
     use crate::client::HttpVerb::*;
     use crate::client::VaultClient as Client;
     use crate::client::{self, EndpointResponse};
+    use crate::Error;
+    use reqwest::StatusCode;
 
     /// vault host for testing
     const HOST: &str = "http://127.0.0.1:8200";
@@ -139,6 +141,20 @@ mod tests {
         let res = client.list_secrets("hello/");
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), ["bob", "fred"]);
+    }
+
+    #[test]
+    fn it_can_detect_404_status() {
+        let client = Client::new(HOST, TOKEN).unwrap();
+
+        let res = client.list_secrets("non/existent/key");
+        assert!(res.is_err());
+
+        if let Err(Error::VaultResponse(_, response)) = res {
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        } else {
+            panic!("Error should match on VaultResponse with reqwest response.");
+        }
     }
 
     #[test]

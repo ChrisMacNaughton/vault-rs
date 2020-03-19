@@ -109,7 +109,7 @@ pub enum VaultNumUses {
 
     /// The number of uses is limited to the value
     /// specified that is guaranteed to be non zero.
-    Limited(NonZeroU64)
+    Limited(NonZeroU64),
 }
 
 impl From<u64> for VaultNumUses {
@@ -1469,10 +1469,13 @@ fn handle_hyper_response(res: StdResult<Response, reqwest::Error>) -> Result<Res
             error_msg.push_str("Could not read vault response.");
             0
         });
-        Err(Error::Vault(format!(
-            "Vault request failed: {:?}, error message: `{}`",
-            res, error_msg
-        )))
+        Err(Error::VaultResponse(
+            format!(
+                "Vault request failed: {:?}, error message: `{}`",
+                res, error_msg
+            ),
+            res,
+        ))
     }
 }
 

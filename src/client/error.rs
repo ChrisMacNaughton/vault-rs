@@ -24,6 +24,12 @@ quick_error! {
             description("vault error")
             display("vault error: {}", err)
         }
+        /// Response from Vault errors
+        /// This is for when the response is not successful.
+        VaultResponse(err: String, response: reqwest::Response) {
+            description("vault response error")
+            display("Error in vault response: {}", err)
+        }
         /// IO errors
         Io(err: ::std::io::Error) {
             from()
