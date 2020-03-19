@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Read;
+use std::num::NonZeroU64;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
@@ -83,6 +84,75 @@ impl<'de> Deserialize<'de> for VaultDuration {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_u64(VaultDurationVisitor)
+    }
+}
+
+/// Number of uses to be used with tokens.
+///
+/// Note: Value returned from vault api can be 0 which means unlimited.
+///
+/// ```
+/// use hashicorp_vault::client::VaultNumUses;
+/// use std::num::NonZeroU64;
+///
+/// let num_uses: VaultNumUses = 10.into();
+///
+/// match num_uses {
+///     VaultNumUses::Limited(uses) => assert_eq!(uses.get(), 10),
+///     VaultNumUses::Unlimited => panic!("Uses shouldn't be unlimited!"),
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VaultNumUses {
+    /// The number of uses is unlimited
+    Unlimited,
+
+    /// The number of uses is limited to the value
+    /// specified that is guaranteed to be non zero.
+    Limited(NonZeroU64)
+}
+
+impl From<u64> for VaultNumUses {
+    fn from(v: u64) -> Self {
+        match NonZeroU64::new(v) {
+            Some(non_zero) => Self::Limited(non_zero),
+            None => Self::Unlimited,
+        }
+    }
+}
+
+impl Serialize for VaultNumUses {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            VaultNumUses::Unlimited => serializer.serialize_u64(0),
+            VaultNumUses::Limited(val) => serializer.serialize_u64(val.clone().into()),
+        }
+    }
+}
+struct VaultNumUsesVisitor;
+impl<'de> Visitor<'de> for VaultNumUsesVisitor {
+    type Value = VaultNumUses;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a positive integer")
+    }
+
+    fn visit_u64<E>(self, value: u64) -> StdResult<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value.into())
+    }
+}
+impl<'de> Deserialize<'de> for VaultNumUses {
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u64(VaultNumUsesVisitor)
     }
 }
 
@@ -191,7 +261,7 @@ pub struct TokenData {
     /// Meta
     pub meta: Option<HashMap<String, String>>,
     /// Number of uses (0: unlimited)
-    pub num_uses: u64,
+    pub num_uses: VaultNumUses,
     /// true if token is an orphan
     pub orphan: bool,
     /// Path
@@ -337,7 +407,7 @@ pub struct AppRoleProperties {
     pub secret_id_bound_cidrs: Option<Vec<String>>,
     /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
     /// after which the `SecretID` will expire.
-    pub secret_id_num_uses: u64,
+    pub secret_id_num_uses: VaultNumUses,
     /// Duration in either an integer number of seconds (3600) or an integer time unit (60m) after which any SecretID expires.
     pub secret_id_ttl: VaultDuration,
     /// List of CIDR blocks; if set, specifies blocks of IP addresses which can authenticate successfully,
@@ -352,7 +422,7 @@ pub struct AppRoleProperties {
     /// Duration after which the issued token can no longer be renewed.
     pub token_max_ttl: VaultDuration,
     /// The maximum number of times a generated token may be used (within its lifetime); 0 means unlimited.
-    pub token_num_uses: u64,
+    pub token_num_uses: VaultNumUses,
     /// The incremental lifetime for generated tokens.
     /// If set, the token generated using this `AppRole` is a periodic token; so long as it is
     /// renewed it never expires, but the TTL set on the token at each renewal is fixed to the value
@@ -461,7 +531,7 @@ pub struct TokenOptions {
     ttl: Option<String>,
     explicit_max_ttl: Option<String>,
     display_name: Option<String>,
-    num_uses: Option<u64>,
+    num_uses: Option<VaultNumUses>,
 }
 
 impl TokenOptions {
@@ -515,8 +585,8 @@ impl TokenOptions {
     }
 
     /// How many times can this token be used before it stops working?
-    pub fn number_of_uses(mut self, uses: u64) -> Self {
-        self.num_uses = Some(uses);
+    pub fn number_of_uses<D: Into<VaultNumUses>>(mut self, uses: D) -> Self {
+        self.num_uses = Some(uses.into());
         self
     }
 
