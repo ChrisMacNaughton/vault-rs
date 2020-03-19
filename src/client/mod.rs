@@ -304,12 +304,33 @@ pub struct WrapData {
     response: String,
 }
 
+/// Token Types
+#[serde(rename_all = "kebab-case")]
+#[derive(Deserialize, Debug)]
+pub enum TokenType {
+    /// Batch tokens are encrypted blobs that carry enough information
+    /// for them to be used for Vault actions, but they require no
+    /// storage on disk to track them.
+    Batch,
+    /// Service tokens are what users will generally think of as
+    /// "normal" Vault tokens.
+    Service,
+    /// Will use the mount's tuned default.
+    Default,
+    /// For a token store this will default to batch, unless the client requests
+    /// a different type at generation time.
+    DefaultBatch,
+    /// For a token store this will default to service, unless the client requests
+    /// a different type at generation time.
+    DefaultService,
+}
+
 /// `AppRole` properties
 #[derive(Deserialize, Debug)]
 pub struct AppRoleProperties {
     /// Require `secret_id` to be presented when logging in using this `AppRole`. Defaults to 'true'.
     pub bind_secret_id: bool,
-    /// Require `secret_id` to be presented when logging in using this `AppRole`. Defaults to 'true'.
+    /// The secret IDs generated using this role will be cluster local.
     pub local_secret_ids: bool,
     /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can
     /// perform the login operation.
@@ -324,7 +345,7 @@ pub struct AppRoleProperties {
     pub token_bound_cidrs: Vec<String>,
     /// If set, will encode an explicit max TTL onto the token. This is a hard cap even if token_ttl and
     /// token_max_ttl would otherwise allow a renewal.
-    pub token_explicit_max_ttl: VaultDuration,
+    pub token_explicit_max_ttl: Option<VaultDuration>,
     /// If set, the default policy will not be set on generated tokens; otherwise it will be added to
     /// the policies set in token_policies.
     pub token_no_default_policy: bool,
@@ -337,7 +358,7 @@ pub struct AppRoleProperties {
     /// renewed it never expires, but the TTL set on the token at each renewal is fixed to the value
     /// specified here. If this value is modified, the token will pick up the new value at its next
     /// renewal.
-    pub token_period: VaultDuration,
+    pub token_period: Option<VaultDuration>,
     /// List of policies to encode onto generated tokens.
     pub token_policies: Vec<String>,
     /// The incremental lifetime for generated tokens.
@@ -346,7 +367,7 @@ pub struct AppRoleProperties {
     /// tuned default (which unless changed will be service tokens). For token store roles, there are two
     /// additional possibilities: default-service and default-batch which specify the type to return unless
     /// the client requests a different type at generation time.
-    pub token_type: String,
+    pub token_type: TokenType,
 }
 
 /// Payload to send to vault when authenticating via `AppId`
@@ -984,7 +1005,6 @@ where
     ///
     /// The `data` attribute of `VaultResponse` should contain the unwrapped information, which is
     /// returned as a `HashMap<String, String>`.
-    #[cfg(feature = "vault_0_6_2")]
     pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
         let res = self.post::<_, String>("/v1/sys/wrapping/unwrap", None, None)?;
         let result: VaultResponse<SecretDataWrapper<HashMap<String, String>>> =

@@ -226,7 +226,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0_6_2")]
     fn it_can_read_a_wrapped_secret() {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
