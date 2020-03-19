@@ -115,8 +115,8 @@ pub enum VaultNumUses {
 impl From<u64> for VaultNumUses {
     fn from(v: u64) -> Self {
         match NonZeroU64::new(v) {
-            Some(non_zero) => Self::Limited(non_zero),
-            None => Self::Unlimited,
+            Some(non_zero) => VaultNumUses::Limited(non_zero),
+            None => VaultNumUses::Unlimited,
         }
     }
 }
