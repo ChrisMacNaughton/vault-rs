@@ -406,7 +406,7 @@ pub struct AppRoleProperties {
     pub bind_secret_id: bool,
     /// The secret IDs generated using this role will be cluster local.
     pub local_secret_ids: bool,
-    /// Vector of CIDR blocks; if set, specifies blocks of IP addresses which can
+    /// List of CIDR blocks; if set, specifies blocks of IP addresses which can
     /// perform the login operation.
     pub secret_id_bound_cidrs: Option<Vec<String>>,
     /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
