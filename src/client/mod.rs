@@ -112,6 +112,10 @@ pub enum VaultNumUses {
     Limited(NonZeroU64),
 }
 
+impl Default for VaultNumUses {
+    fn default() -> Self { VaultNumUses::Unlimited }
+}
+
 impl From<u64> for VaultNumUses {
     fn from(v: u64) -> Self {
         match NonZeroU64::new(v) {
@@ -402,7 +406,7 @@ pub struct AppRoleProperties {
     pub bind_secret_id: bool,
     /// The secret IDs generated using this role will be cluster local.
     pub local_secret_ids: bool,
-    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can
+    /// Vector of CIDR blocks; if set, specifies blocks of IP addresses which can
     /// perform the login operation.
     pub secret_id_bound_cidrs: Option<Vec<String>>,
     /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
@@ -421,7 +425,7 @@ pub struct AppRoleProperties {
     pub token_no_default_policy: bool,
     /// Duration after which the issued token can no longer be renewed.
     pub token_max_ttl: VaultDuration,
-    /// The maximum number of times a generated token may be used (within its lifetime); 0 means unlimited.
+    /// The maximum number of times a generated token may be used (within its lifetime).
     pub token_num_uses: VaultNumUses,
     /// The incremental lifetime for generated tokens.
     /// If set, the token generated using this `AppRole` is a periodic token; so long as it is
@@ -531,7 +535,7 @@ pub struct TokenOptions {
     ttl: Option<String>,
     explicit_max_ttl: Option<String>,
     display_name: Option<String>,
-    num_uses: Option<VaultNumUses>,
+    num_uses: VaultNumUses,
 }
 
 impl TokenOptions {
@@ -586,7 +590,7 @@ impl TokenOptions {
 
     /// How many times can this token be used before it stops working?
     pub fn number_of_uses<D: Into<VaultNumUses>>(mut self, uses: D) -> Self {
-        self.num_uses = Some(uses.into());
+        self.num_uses = uses.into();
         self
     }
 
