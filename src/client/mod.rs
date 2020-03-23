@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Read;
+use std::num::NonZeroU64;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
@@ -10,8 +11,9 @@ use reqwest::{self, header::CONTENT_TYPE, Client, Method, Response};
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{serde_json, TryInto};
+use crate::TryInto;
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
+use serde_json;
 use std::time::Duration;
 use url::Url;
 
@@ -82,6 +84,79 @@ impl<'de> Deserialize<'de> for VaultDuration {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_u64(VaultDurationVisitor)
+    }
+}
+
+/// Number of uses to be used with tokens.
+///
+/// Note: Value returned from vault api can be 0 which means unlimited.
+///
+/// ```
+/// use hashicorp_vault::client::VaultNumUses;
+/// use std::num::NonZeroU64;
+///
+/// let num_uses: VaultNumUses = 10.into();
+///
+/// match num_uses {
+///     VaultNumUses::Limited(uses) => assert_eq!(uses.get(), 10),
+///     VaultNumUses::Unlimited => panic!("Uses shouldn't be unlimited!"),
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VaultNumUses {
+    /// The number of uses is unlimited
+    Unlimited,
+
+    /// The number of uses is limited to the value
+    /// specified that is guaranteed to be non zero.
+    Limited(NonZeroU64),
+}
+
+impl Default for VaultNumUses {
+    fn default() -> Self { VaultNumUses::Unlimited }
+}
+
+impl From<u64> for VaultNumUses {
+    fn from(v: u64) -> Self {
+        match NonZeroU64::new(v) {
+            Some(non_zero) => VaultNumUses::Limited(non_zero),
+            None => VaultNumUses::Unlimited,
+        }
+    }
+}
+
+impl Serialize for VaultNumUses {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            VaultNumUses::Unlimited => serializer.serialize_u64(0),
+            VaultNumUses::Limited(val) => serializer.serialize_u64(val.clone().into()),
+        }
+    }
+}
+struct VaultNumUsesVisitor;
+impl<'de> Visitor<'de> for VaultNumUsesVisitor {
+    type Value = VaultNumUses;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a positive integer")
+    }
+
+    fn visit_u64<E>(self, value: u64) -> StdResult<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value.into())
+    }
+}
+impl<'de> Deserialize<'de> for VaultNumUses {
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_u64(VaultNumUsesVisitor)
     }
 }
 
@@ -190,7 +265,7 @@ pub struct TokenData {
     /// Meta
     pub meta: Option<HashMap<String, String>>,
     /// Number of uses (0: unlimited)
-    pub num_uses: u64,
+    pub num_uses: VaultNumUses,
     /// true if token is an orphan
     pub orphan: bool,
     /// Path
@@ -206,6 +281,12 @@ pub struct TokenData {
 }
 
 /// Secret data, used in `VaultResponse`
+#[derive(Deserialize, Serialize, Debug)]
+struct SecretDataWrapper<D> {
+    data: D,
+}
+
+/// Actual Secret data, used in `VaultResponse`
 #[derive(Deserialize, Serialize, Debug)]
 struct SecretData {
     value: String,
@@ -245,7 +326,6 @@ pub struct Auth {
 #[derive(Deserialize, Debug)]
 pub struct VaultResponse<D> {
     /// Request id
-    #[cfg(feature = "vault_0_6_1")]
     pub request_id: String,
     /// Lease id
     pub lease_id: Option<String>,
@@ -261,6 +341,21 @@ pub struct VaultResponse<D> {
     pub auth: Option<Auth>,
     /// Wrap info, containing token to perform unwrapping
     pub wrap_info: Option<WrapInfo>,
+}
+
+impl<D> From<VaultResponse<SecretDataWrapper<D>>> for VaultResponse<D> {
+    fn from(v: VaultResponse<SecretDataWrapper<D>>) -> Self {
+        Self {
+            request_id: v.request_id,
+            lease_id: v.lease_id,
+            renewable: v.renewable,
+            lease_duration: v.lease_duration,
+            data: v.data.map(|value| value.data),
+            warnings: v.warnings,
+            auth: v.auth,
+            wrap_info: v.wrap_info,
+        }
+    }
 }
 
 /// Information provided to retrieve a wrapped response
@@ -283,28 +378,70 @@ pub struct WrapData {
     response: String,
 }
 
+/// Token Types
+#[serde(rename_all = "kebab-case")]
+#[derive(Deserialize, Debug)]
+pub enum TokenType {
+    /// Batch tokens are encrypted blobs that carry enough information
+    /// for them to be used for Vault actions, but they require no
+    /// storage on disk to track them.
+    Batch,
+    /// Service tokens are what users will generally think of as
+    /// "normal" Vault tokens.
+    Service,
+    /// Will use the mount's tuned default.
+    Default,
+    /// For a token store this will default to batch, unless the client requests
+    /// a different type at generation time.
+    DefaultBatch,
+    /// For a token store this will default to service, unless the client requests
+    /// a different type at generation time.
+    DefaultService,
+}
+
 /// `AppRole` properties
 #[derive(Deserialize, Debug)]
 pub struct AppRoleProperties {
     /// Require `secret_id` to be presented when logging in using this `AppRole`. Defaults to 'true'.
     pub bind_secret_id: bool,
-    /// Comma-separated list of CIDR blocks; if set, specifies blocks of IP addresses which can
+    /// The secret IDs generated using this role will be cluster local.
+    pub local_secret_ids: bool,
+    /// List of CIDR blocks; if set, specifies blocks of IP addresses which can
     /// perform the login operation.
-    pub bound_cidr_list: String,
+    pub secret_id_bound_cidrs: Option<Vec<String>>,
+    /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
+    /// after which the `SecretID` will expire.
+    pub secret_id_num_uses: VaultNumUses,
+    /// Duration in either an integer number of seconds (3600) or an integer time unit (60m) after which any SecretID expires.
+    pub secret_id_ttl: VaultDuration,
+    /// List of CIDR blocks; if set, specifies blocks of IP addresses which can authenticate successfully,
+    /// and ties the resulting token to these blocks as well.
+    pub token_bound_cidrs: Vec<String>,
+    /// If set, will encode an explicit max TTL onto the token. This is a hard cap even if token_ttl and
+    /// token_max_ttl would otherwise allow a renewal.
+    pub token_explicit_max_ttl: Option<VaultDuration>,
+    /// If set, the default policy will not be set on generated tokens; otherwise it will be added to
+    /// the policies set in token_policies.
+    pub token_no_default_policy: bool,
+    /// Duration after which the issued token can no longer be renewed.
+    pub token_max_ttl: VaultDuration,
+    /// The maximum number of times a generated token may be used (within its lifetime).
+    pub token_num_uses: VaultNumUses,
+    /// The incremental lifetime for generated tokens.
     /// If set, the token generated using this `AppRole` is a periodic token; so long as it is
     /// renewed it never expires, but the TTL set on the token at each renewal is fixed to the value
     /// specified here. If this value is modified, the token will pick up the new value at its next
     /// renewal.
-    pub period: VaultDuration,
-    /// List of policies set on tokens issued via this `AppRole`.
-    pub policies: Vec<String>,
-    /// Number of times any particular `SecretID` can be used to fetch a token from this `AppRole`,
-    /// after which the `SecretID` will expire.
-    pub secret_id_num_uses: u64,
-    /// Duration after which any `SecretID` expires.
-    pub secret_id_ttl: VaultDuration,
-    /// Duration after which the issued token can no longer be renewed.
-    pub token_max_ttl: VaultDuration,
+    pub token_period: Option<VaultDuration>,
+    /// List of policies to encode onto generated tokens.
+    pub token_policies: Vec<String>,
+    /// The incremental lifetime for generated tokens.
+    pub token_ttl: VaultDuration,
+    /// The type of token that should be generated. Can be service, batch, or default to use the mount's
+    /// tuned default (which unless changed will be service tokens). For token store roles, there are two
+    /// additional possibilities: default-service and default-batch which specify the type to return unless
+    /// the client requests a different type at generation time.
+    pub token_type: TokenType,
 }
 
 /// Payload to send to vault when authenticating via `AppId`
@@ -347,6 +484,8 @@ pub struct ListResponse {
 /// Options that we use when renewing tokens.
 #[derive(Deserialize, Serialize, Debug)]
 struct RenewTokenOptions {
+    /// Token to renew. This can be part of the URL or the body.
+    token: String,
     /// The amount of time for which to renew the lease.  May be ignored or
     /// overriden by vault.
     increment: Option<u64>,
@@ -396,7 +535,7 @@ pub struct TokenOptions {
     ttl: Option<String>,
     explicit_max_ttl: Option<String>,
     display_name: Option<String>,
-    num_uses: Option<u64>,
+    num_uses: VaultNumUses,
 }
 
 impl TokenOptions {
@@ -450,8 +589,8 @@ impl TokenOptions {
     }
 
     /// How many times can this token be used before it stops working?
-    pub fn number_of_uses(mut self, uses: u64) -> Self {
-        self.num_uses = Some(uses);
+    pub fn number_of_uses<D: Into<VaultNumUses>>(mut self, uses: D) -> Self {
+        self.num_uses = uses.into();
         self
     }
 
@@ -688,10 +827,12 @@ where
     /// ```
     ///
     /// [token]: https://www.vaultproject.io/docs/auth/token.html
-    pub fn renew_token<S: AsRef<str>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
-        let body = serde_json::to_string(&RenewTokenOptions { increment })?;
-        let url = format!("/v1/auth/token/renew/{}", token.as_ref());
-        let res = self.post::<_, String>(&url, Some(&body), None)?;
+    pub fn renew_token<S: Into<String>>(&self, token: S, increment: Option<u64>) -> Result<Auth> {
+        let body = serde_json::to_string(&RenewTokenOptions {
+            token: token.into(),
+            increment,
+        })?;
+        let res = self.post::<_, String>("/v1/auth/token/renew", Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         vault_res
             .auth
@@ -758,12 +899,11 @@ where
         lease_id: S,
         increment: Option<u64>,
     ) -> Result<VaultResponse<()>> {
-        let body = serde_json::to_string(&RenewLeaseOptions { lease_id: lease_id.into(), increment })?;
-        let res = self.put::<_, String>(
-            "/v1/sys/leases/renew",
-            Some(&body),
-            None,
-        )?;
+        let body = serde_json::to_string(&RenewLeaseOptions {
+            lease_id: lease_id.into(),
+            increment,
+        })?;
+        let res = self.put::<_, String>("/v1/sys/leases/renew", Some(&body), None)?;
         let vault_res: VaultResponse<()> = parse_vault_response(res)?;
         Ok(vault_res)
     }
@@ -842,8 +982,13 @@ where
     /// ```
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
         let _ = self.post::<_, String>(
-            &format!("/v1/secret/{}", key.into())[..],
-            Some(&format!("{{\"value\": \"{}\"}}", self.escape(value.as_ref()))[..]),
+            &format!("/v1/secret/data/{}", key.into())[..],
+            Some(
+                &format!(
+                    "{{\"data\": {{\"value\": \"{}\"}}}}",
+                    self.escape(value.as_ref())
+                )[..],
+            ),
             None,
         )?;
         Ok(())
@@ -851,6 +996,40 @@ where
 
     fn escape<S: AsRef<str>>(&self, input: S) -> String {
         input.as_ref().replace("\n", "\\n")
+    }
+
+    ///
+    /// List secrets at specified path
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    ///
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    /// let res = client.set_secret("hello/fred", "world");
+    /// assert!(res.is_ok());
+    /// let res = client.set_secret("hello/bob", "world");
+    /// assert!(res.is_ok());
+    /// let res = client.list_secrets("hello/");
+    /// assert!(res.is_ok());
+    /// assert_eq!(res.unwrap(), ["bob", "fred"]);
+    /// ```
+    pub fn list_secrets<S: AsRef<str>>(&self, key: S) -> Result<Vec<String>> {
+        let res = self.list::<_, String>(
+            &format!("/v1/secret/metadata/{}", key.as_ref())[..],
+            None,
+            None,
+        )?;
+        let decoded: VaultResponse<ListResponse> = parse_vault_response(res)?;
+        match decoded.data {
+            Some(data) => Ok(data.keys),
+            _ => Err(Error::Vault(format!(
+                "No secrets found in response: `{:#?}`",
+                decoded
+            ))),
+        }
     }
 
     ///
@@ -870,10 +1049,10 @@ where
     /// assert_eq!(res.unwrap(), "world");
     /// ```
     pub fn get_secret<S: AsRef<str>>(&self, key: S) -> Result<String> {
-        let res = self.get::<_, String>(&format!("/v1/secret/{}", key.as_ref())[..], None)?;
-        let decoded: VaultResponse<SecretData> = parse_vault_response(res)?;
+        let res = self.get::<_, String>(&format!("/v1/secret/data/{}", key.as_ref())[..], None)?;
+        let decoded: VaultResponse<SecretDataWrapper<SecretData>> = parse_vault_response(res)?;
         match decoded.data {
-            Some(data) => Ok(data.value),
+            Some(data) => Ok(data.data.value),
             _ => Err(Error::Vault(format!(
                 "No secret found in response: `{:#?}`",
                 decoded
@@ -889,7 +1068,7 @@ where
         wrap_ttl: S2,
     ) -> Result<VaultResponse<()>> {
         let res = self.get(
-            &format!("/v1/secret/{}", key.as_ref())[..],
+            &format!("/v1/secret/data/{}", key.as_ref())[..],
             Some(wrap_ttl.as_ref()),
         )?;
         parse_vault_response(res)
@@ -900,14 +1079,14 @@ where
     ///
     /// The `data` attribute of `VaultResponse` should contain the unwrapped information, which is
     /// returned as a `HashMap<String, String>`.
-    #[cfg(feature = "vault_0_6_2")]
     pub fn get_unwrapped_response(&self) -> Result<VaultResponse<HashMap<String, String>>> {
         let res = self.post::<_, String>("/v1/sys/wrapping/unwrap", None, None)?;
-        parse_vault_response(res)
+        let result: VaultResponse<SecretDataWrapper<HashMap<String, String>>> =
+            parse_vault_response(res)?;
+        Ok(result.into())
     }
 
     /// Reads the properties of an existing `AppRole`.
-    #[cfg(feature = "vault_0_6_1")]
     pub fn get_app_role_properties<S: AsRef<str>>(
         &self,
         role_name: S,
@@ -1083,7 +1262,7 @@ where
     /// assert!(res.is_ok());
     /// ```
     pub fn delete_secret(&self, key: &str) -> Result<()> {
-        let _ = self.delete(&format!("/v1/secret/{}", key)[..])?;
+        let _ = self.delete(&format!("/v1/secret/data/{}", key)[..])?;
         Ok(())
     }
 
@@ -1112,7 +1291,8 @@ where
     /// let api_token = res.data.unwrap().api_key_token;
     /// ```
     pub fn get_secret_engine_creds<K>(&self, backend: &str, name: &str) -> Result<VaultResponse<K>>
-        where K: DeserializeOwned
+    where
+        K: DeserializeOwned,
     {
         let res = self.get::<_, String>(&format!("/v1/{}/creds/{}", backend, name)[..], None)?;
         let decoded: VaultResponse<K> = parse_vault_response(res)?;
@@ -1293,10 +1473,13 @@ fn handle_hyper_response(res: StdResult<Response, reqwest::Error>) -> Result<Res
             error_msg.push_str("Could not read vault response.");
             0
         });
-        Err(Error::Vault(format!(
-            "Vault request failed: {:?}, error message: `{}`",
-            res, error_msg
-        )))
+        Err(Error::VaultResponse(
+            format!(
+                "Vault request failed: {:?}, error message: `{}`",
+                res, error_msg
+            ),
+            res,
+        ))
     }
 }
 

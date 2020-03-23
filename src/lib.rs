@@ -27,8 +27,6 @@ extern crate log;
 extern crate quick_error;
 pub extern crate chrono;
 extern crate serde;
-extern crate serde_derive;
-extern crate serde_json;
 pub extern crate url;
 
 /// vault client
@@ -105,6 +103,8 @@ mod tests {
     use crate::client::HttpVerb::*;
     use crate::client::VaultClient as Client;
     use crate::client::{self, EndpointResponse};
+    use crate::Error;
+    use reqwest::StatusCode;
 
     /// vault host for testing
     const HOST: &str = "http://127.0.0.1:8200";
@@ -123,6 +123,38 @@ mod tests {
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
         assert_eq!(res, "world");
+    }
+
+    #[test]
+    fn it_can_list_secrets() {
+        let client = Client::new(HOST, TOKEN).unwrap();
+
+        let _res = client.set_secret("hello/fred", "world").unwrap();
+        // assert!(res.is_ok());
+        let res = client.set_secret("hello/bob", "world");
+        assert!(res.is_ok());
+
+        let res = client.list_secrets("hello");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), ["bob", "fred"]);
+
+        let res = client.list_secrets("hello/");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), ["bob", "fred"]);
+    }
+
+    #[test]
+    fn it_can_detect_404_status() {
+        let client = Client::new(HOST, TOKEN).unwrap();
+
+        let res = client.list_secrets("non/existent/key");
+        assert!(res.is_err());
+
+        if let Err(Error::VaultResponse(_, response)) = res {
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        } else {
+            panic!("Error should match on VaultResponse with reqwest response.");
+        }
     }
 
     #[test]
@@ -157,7 +189,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0_6_1")]
     fn it_can_perform_approle_workflow() {
         use std::collections::HashMap;
 
@@ -177,7 +208,7 @@ mod tests {
         panic_non_empty(&res);
 
         // let test the properties endpoint while we're here
-        assert!(c.get_app_role_properties("test_role").is_ok());
+        let _ = c.get_app_role_properties("test_role").unwrap();
 
         // get approle's role-id
         let res: EndpointResponse<HashMap<String, String>> = c
@@ -211,7 +242,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0_6_2")]
     fn it_can_read_a_wrapped_secret() {
         let client = Client::new(HOST, TOKEN).unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
@@ -230,7 +260,7 @@ mod tests {
     fn it_can_store_policies() {
         // use trailing slash for host to ensure Url processing fixes this later
         let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
-        let body = "{\"rules\":\"{}\"}";
+        let body = "{\"policy\":\"{}\"}";
         // enable approle auth backend
         let res: EndpointResponse<()> = c
             .call_endpoint(PUT, "sys/policy/test_policy_1", None, Some(body))
@@ -280,7 +310,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "vault_0_6_1")]
     fn it_can_list_things() {
         let c = Client::new(HOST, TOKEN).unwrap();
         let _ = c

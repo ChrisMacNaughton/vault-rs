@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-VAULT_VERSION=${VAULT_VERSION:-0.6.1}
+VAULT_VERSION=${VAULT_VERSION:-1.3.3}
 
 mkdir -p $HOME/bin
 
