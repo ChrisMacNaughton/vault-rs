@@ -1,6 +1,6 @@
 [package]
 name = "hashicorp_vault"
-version = "0.7.0"
+version = "1.0.0"
 edition = "2018"
 authors = [
   "Chris MacNaughton <chmacnaughton@gmail.com>",
