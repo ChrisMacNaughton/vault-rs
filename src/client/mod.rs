@@ -239,7 +239,7 @@ pub struct VaultClient<T> {
     pub host: Url,
     /// Token to access vault
     pub token: String,
-    /// `hyper::Client`
+    /// `reqwest::Client`
     client: Client,
     /// Data
     pub data: Option<VaultResponse<T>>,
@@ -630,21 +630,6 @@ pub enum EndpointResponse<D> {
     VaultResponse(VaultResponse<D>),
     /// Empty, but still successful response
     Empty,
-}
-
-header! {
-    /// Token used to authenticate with the vault API
-    (XVaultToken, "X-Vault-Token") => [String]
-}
-header! {
-    /// The TTL for the token is set by the client using the `X-Vault-Wrap-TTL` header and can be
-    /// either an integer number of seconds or a string duration of seconds (15s), minutes (20m),
-    /// or hours (25h). When using the Vault CLI, you can set this via the -wrap-ttl parameter.
-    /// Response wrapping is per-request; it is the presence of a value in this header that
-    /// activates wrapping of the response.
-    ///
-    /// See: https://www.vaultproject.io/docs/secrets/cubbyhole/index.html
-    (XVaultWrapTTL, "X-Vault-Wrap-TTL") => [String]
 }
 
 impl VaultClient<TokenData> {
