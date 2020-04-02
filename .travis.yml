@@ -20,7 +20,13 @@ matrix:
   fast_finish: true
 env:
   matrix:
-  - VAULT_VERSION=1.3.3 VAULT_BRANCH=release TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  # 1.1.0 and less are not currently supported as they throw errors with the AppRole
+  # authentication tests.
+  # - VAULT_VERSION=1.1.0 TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_VERSION=1.2.0 TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_VERSION=1.3.0 TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_VERSION=1.3.4 TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - VAULT_VERSION=1.4.0-rc1 TRAVIS_CARGO_NIGHTLY_FEATURE=""
   global:
     secure: SQxIo2LX+e5nTKKZ2I0Ix2BIfo5Q3xPaLv9mrvKf/aPvaqh/Z4LPS6l3MgOiqKx0zJBH/QHfqO8IUoQrDpq4Fu609Yo9nU6FCPsbjYOhOgQ2+XNzmLX389q2SNBZirae8U5pm4VVXAO4abnUv7mDImje8AubYVRGDXv0XsSlJtPlyPVdqxz0a52k4qg4Jzf8K+x1RZy/O8bwSCCgwgjqm2zLOn/3MFSAH3jxHaAg5i8fxmjCOd8sAIEZvHL0U7H9X0wprirLZxGegFyp5+wU+IiPmJNG88kJJ3ylGCz2ynzkreijYUvbpmfOlmMOQU5rq0SbDUOTFA2Muqnt53d6SCWjFWbrQksDS8MNpu2rVNCm+pmVdGIRYBdpY5QqYyA7Cbu65GqJkorwCOT6U6XK4UO+5V5ICXaXTvz4buzGVzK8UBYwl5jrFrNKud+FyckaDeU7wNIYH7meQ/Qf6zJtwHl9AH+yTW9bCk42lo+JCjowElGCfKULC1n09tvhoBNlTvd+8yICz3nAXvMD5peDJ4H8dMPgDtyKOl1+lTBccUTD5EtkaLgoahPEH7R1hC+PzbUy1+YeG3G+qoG90T+sso/DjSD6sKtDten8AqYeB0g9gWbenzsnMsfoz/GqpV0haxrGFw5/QbCnaOSGFKDzy5iks72oJ8HdOiX5sNKX6S8=
 cache:
@@ -35,7 +41,7 @@ before_script:
 - VAULT_ADDR=http://127.0.0.1:8200 vault secrets enable transit
 - VAULT_ADDR=http://127.0.0.1:8200 vault write -f transit/keys/test-vault-rs
 install:
-- travis_retry bin/install-vault-${VAULT_BRANCH}.sh
+- travis_retry bin/install-vault-release.sh
 - export PATH=$HOME/bin:$PATH
 - vault server -dev > /dev/null 2>&1 &
 script:
