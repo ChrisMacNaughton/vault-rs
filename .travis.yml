@@ -7,8 +7,6 @@ addons:
       - libdw-dev
       - binutils-dev
       - cmake # also required for cargo-update
-    sources:
-      - kalakris-cmake
 os: linux
 dist: bionic
 language: rust
