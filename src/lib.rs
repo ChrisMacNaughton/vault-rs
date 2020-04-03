@@ -192,6 +192,11 @@ mod tests {
 
         let c = Client::new(HOST, TOKEN).unwrap();
         let mut body = "{\"type\":\"approle\"}";
+        // Ensure we do not currently have an approle backend enabled.
+        // Older vault versions (<1.2.0) seem to have an AppRole backend
+        // enabled by default, so calling the POST to create a new one
+        // fails with a 400 status
+        let _ : EndpointResponse<()> = c.call_endpoint(DELETE, "sys/auth/approle", None, None).unwrap();
         // enable approle auth backend
         let mut res: EndpointResponse<()> = c
             .call_endpoint(POST, "sys/auth/approle", None, Some(body))
@@ -205,7 +210,7 @@ mod tests {
             .unwrap();
         panic_non_empty(&res);
 
-        // let test the properties endpoint while we're here
+        // let's test the properties endpoint while we're here
         let _ = c.get_app_role_properties("test_role").unwrap();
 
         // get approle's role-id
