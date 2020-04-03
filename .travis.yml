@@ -54,13 +54,13 @@ before_script:
 - VAULT_ADDR=http://127.0.0.1:8200 vault secrets enable transit
 - VAULT_ADDR=http://127.0.0.1:8200 vault write -f transit/keys/test-vault-rs
 install:
-- cargo install cargo-update || echo "cargo-update already installed"
-- cargo install cargo-travis || echo "cargo-travis already installed"
-- cargo install-update -a # update outdated cached binaries
-- cargo install cargo-audit
 - travis_retry bin/install-vault-release.sh
 - export PATH=$HOME/bin:$PATH
 - vault server -dev > /dev/null 2>&1 &
+- cargo install cargo-update || echo "cargo-update already installed"
+- cargo install cargo-travis || echo "cargo-travis already installed"
+- cargo install cargo-audit  || echo "cargo-audit already installed"
+- cargo install-update -a # update outdated cached binaries
 script:
   - cargo build --tests --verbose
   - cargo test --verbose
