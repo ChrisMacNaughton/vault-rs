@@ -10,10 +10,7 @@ os: linux
 dist: bionic
 language: rust
 rust:
-# - nightly
-# - beta
 - stable
-- 1.36.0
 jobs:
   allow_failures:
   - rust: nightly
