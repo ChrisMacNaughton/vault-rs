@@ -20,8 +20,6 @@
 extern crate base64;
 extern crate reqwest;
 #[macro_use]
-extern crate hyper;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate quick_error;
