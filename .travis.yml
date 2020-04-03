@@ -18,12 +18,11 @@ matrix:
   - rust: nightly
   - rust: beta
   fast_finish: true
-jobs:
   include:
-    - rust: nightly
-      env: VAULT_VERSION=1.3.4
-    - rust: beta
-      env: VAULT_VERSION=1.3.4
+  - rust: nightly
+    env: VAULT_VERSION=1.3.4
+  - rust: beta
+    env: VAULT_VERSION=1.3.4
   # exclude:
   # - rust: nightly
   #   env: VAULT_VERSION=1.0.0
@@ -46,7 +45,7 @@ jobs:
   # - rust: beta
   #   env: VAULT_VERSION=1.4.0-rc1
 env:
-  matrix:
+  jobs:
   - VAULT_VERSION=1.0.0
   - VAULT_VERSION=1.1.0
   - VAULT_VERSION=1.2.0
@@ -78,4 +77,3 @@ script:
   - cargo audit
 after_success:
 - travis-cargo coveralls --no-sudo
-sudo: false
