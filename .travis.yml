@@ -6,6 +6,7 @@ addons:
       - libelf-dev
       - libdw-dev
       - unzip
+os: linux
 dist: bionic
 language: rust
 rust:
@@ -13,38 +14,29 @@ rust:
 # - beta
 - stable
 - 1.36.0
-matrix:
+jobs:
   allow_failures:
   - rust: nightly
   - rust: beta
   fast_finish: true
+  # The following three jobs should be configured to test the latest
+  # supported release of Vault with the latest beta and nightly, as
+  # well as Rust 1.36 (the earliest supported Rust)
   include:
   - rust: nightly
     env: VAULT_VERSION=1.3.4
   - rust: beta
     env: VAULT_VERSION=1.3.4
-  # exclude:
-  # - rust: nightly
-  #   env: VAULT_VERSION=1.0.0
-  # - rust: nightly
-  #   env: VAULT_VERSION=1.1.0
-  # - rust: nightly
-  #   env: VAULT_VERSION=1.2.0
-  # - rust: nightly
-  #   env: VAULT_VERSION=1.3.0
-  # - rust: nightly
-  #   env: VAULT_VERSION=1.4.0-rc1
-  # - rust: beta
-  #   env: VAULT_VERSION=1.0.0
-  # - rust: beta
-  #   env: VAULT_VERSION=1.1.0
-  # - rust: beta
-  #   env: VAULT_VERSION=1.2.0
-  # - rust: beta
-  #   env: VAULT_VERSION=1.3.0
-  # - rust: beta
-  #   env: VAULT_VERSION=1.4.0-rc1
+  - rust: 1.36.0
+    env: VAULT_VERSION=1.3.4
 env:
+  # When a new Vault release comes out, it should be added to this list
+  # All of the Vault releases can be seen at
+  # https://releases.hashicorp.com/vault/
+  #
+  # The current practice is to take the earliest version of minor releases,
+  # in addition to the latest point release, and any new minor version
+  # release candidates
   jobs:
   - VAULT_VERSION=1.0.0
   - VAULT_VERSION=1.1.0
