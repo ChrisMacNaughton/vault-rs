@@ -416,13 +416,13 @@ pub struct AppRoleProperties {
     pub secret_id_ttl: VaultDuration,
     /// List of CIDR blocks; if set, specifies blocks of IP addresses which can authenticate successfully,
     /// and ties the resulting token to these blocks as well.
-    pub token_bound_cidrs: Vec<String>,
+    pub token_bound_cidrs: Option<Vec<String>>,
     /// If set, will encode an explicit max TTL onto the token. This is a hard cap even if token_ttl and
     /// token_max_ttl would otherwise allow a renewal.
     pub token_explicit_max_ttl: Option<VaultDuration>,
     /// If set, the default policy will not be set on generated tokens; otherwise it will be added to
     /// the policies set in token_policies.
-    pub token_no_default_policy: bool,
+    pub token_no_default_policy: Option<bool>,
     /// Duration after which the issued token can no longer be renewed.
     pub token_max_ttl: VaultDuration,
     /// The maximum number of times a generated token may be used (within its lifetime).
@@ -434,7 +434,7 @@ pub struct AppRoleProperties {
     /// renewal.
     pub token_period: Option<VaultDuration>,
     /// List of policies to encode onto generated tokens.
-    pub token_policies: Vec<String>,
+    pub token_policies: Option<Vec<String>>,
     /// The incremental lifetime for generated tokens.
     pub token_ttl: VaultDuration,
     /// The type of token that should be generated. Can be service, batch, or default to use the mount's
