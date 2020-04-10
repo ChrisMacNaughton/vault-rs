@@ -96,6 +96,26 @@ impl<'a> TryFrom<&'a str> for Url {
     }
 }
 
+impl<'a> TryFrom<&'a String> for Url {
+    type Err = Error;
+    fn try_from(s: &String) -> ::std::result::Result<Self, Self::Err> {
+        match Url::parse(s) {
+            Ok(u) => Ok(u),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+impl TryFrom<String> for Url {
+    type Err = Error;
+    fn try_from(s: String) -> ::std::result::Result<Self, Self::Err> {
+        match Url::parse(&s) {
+            Ok(u) => Ok(u),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::client::HttpVerb::*;
@@ -112,6 +132,16 @@ mod tests {
     #[test]
     fn it_can_create_a_client() {
         let _ = Client::new(HOST, TOKEN).unwrap();
+    }
+
+    #[test]
+    fn it_can_create_a_client_from_a_string_reference(){
+        let _ = Client::new(&HOST.to_string(), TOKEN).unwrap();
+    }
+
+    #[test]
+    fn it_can_create_a_client_from_a_string(){
+        let _ = Client::new(HOST.to_string(), TOKEN).unwrap();
     }
 
     #[test]
