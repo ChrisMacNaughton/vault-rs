@@ -980,7 +980,9 @@ where
     }
 
     fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref().replace("\n", "\\n")
+        input.as_ref()
+            .replace("\n", "\\n")
+            .replace("\"", "\\\"")
     }
 
     ///
