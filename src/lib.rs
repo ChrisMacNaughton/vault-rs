@@ -154,6 +154,16 @@ mod tests {
     }
 
     #[test]
+    fn it_can_store_json_secrets() {
+        let client = Client::new(HOST, TOKEN).unwrap();
+        let json = "{\"foo\": {\"bar\": [\"baz\"]}}";
+        let res = client.set_secret("json_secret", json);
+        assert!(res.is_ok());
+        let res = client.get_secret("json_secret").unwrap();
+        assert_eq!(res, json)
+    }
+
+    #[test]
     fn it_can_list_secrets() {
         let client = Client::new(HOST, TOKEN).unwrap();
 
