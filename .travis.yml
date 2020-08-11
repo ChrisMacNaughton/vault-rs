@@ -19,13 +19,13 @@ jobs:
   fast_finish: true
   # The following three jobs should be configured to test the latest
   # supported release of Vault with the latest beta and nightly, as
-  # well as Rust 1.36 (the earliest supported Rust)
+  # well as the earliest supported Rust.
   include:
   - rust: nightly
     env: VAULT_VERSION=1.3.4
   - rust: beta
     env: VAULT_VERSION=1.3.4
-  - rust: 1.36.0
+  - rust: 1.38.0
     env: VAULT_VERSION=1.3.4
 env:
   # When a new Vault release comes out, it should be added to this list
@@ -64,6 +64,6 @@ install:
 script:
   - cargo build --tests --verbose
   - cargo test --verbose
-  - cargo audit
+  - if [ $TRAVIS_RUST_VERSION = "stable" ]; then cargo audit; fi
 after_success:
 - cargo coveralls
