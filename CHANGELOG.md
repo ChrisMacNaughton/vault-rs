@@ -1,4 +1,11 @@
-## (Unreleased)
+## 1.1.0
+
+FEATURES
+
+- `escape` now escapes '\"', allowing JSON to be saved into a secret.
+- Update gate tests to use released Vault 1.4.0.
+
+## 1.0.0
 
 FEATURES
 
