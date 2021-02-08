@@ -63,21 +63,21 @@ jobs:
         VAULT_ADDR=http://127.0.0.1:8200 vault write -f transit/keys/test-vault-rs
     - run: cargo test --verbose
 
-  # rustfmt:
-  #   name: rustfmt
-  #   runs-on: ubuntu-18.04
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v1
-  #     with:
-  #       fetch-depth: 1
-  #   - name: Install Rust
-  #     uses: actions-rs/toolchain@v1
-  #     with:
-  #       toolchain: stable
-  #       override: true
-  #       profile: minimal
-  #       components: rustfmt
-  #   - name: Check formatting
-  #     run: |
-  #       cargo fmt -- --check
+  rustfmt:
+    name: rustfmt
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        profile: minimal
+        components: rustfmt
+    - name: Check formatting
+      run: |
+        cargo fmt -- --check
