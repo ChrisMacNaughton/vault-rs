@@ -1,3 +1,14 @@
+## NEXT
+
+FEATURES
+
+- Update tested Vault releases to include latest versions.
+- Migrate CI testing to Github actions.
+
+BREAKING CHANGES
+
+- Rust 1.42 is now required
+
 ## 1.1.0
 
 FEATURES

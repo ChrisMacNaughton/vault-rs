@@ -113,7 +113,9 @@ pub enum VaultNumUses {
 }
 
 impl Default for VaultNumUses {
-    fn default() -> Self { VaultNumUses::Unlimited }
+    fn default() -> Self {
+        VaultNumUses::Unlimited
+    }
 }
 
 impl From<u64> for VaultNumUses {
@@ -379,8 +381,8 @@ pub struct WrapData {
 }
 
 /// Token Types
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub enum TokenType {
     /// Batch tokens are encrypted blobs that carry enough information
     /// for them to be used for Vault actions, but they require no
@@ -980,9 +982,7 @@ where
     }
 
     fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref()
-            .replace("\n", "\\n")
-            .replace("\"", "\\\"")
+        input.as_ref().replace("\n", "\\n").replace("\"", "\\\"")
     }
 
     ///
