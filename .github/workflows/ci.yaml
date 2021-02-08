@@ -50,8 +50,8 @@ jobs:
         override: true
         profile: minimal
     - run: cargo build --verbose
-    - run: cargo doc --verbose
-    - run: bin/install-vault-release.sh
+    - name: Setup vault
+      run: bin/install-vault-release.sh
       env:
         VAULT_VERSION: ${{ matrix.vault_versions }}
     - run: >
@@ -59,6 +59,7 @@ jobs:
         VAULT_ADDR=http://127.0.0.1:8200 vault token create -id="test12345" -ttl="720h"
         VAULT_ADDR=http://127.0.0.1:8200 vault secrets enable transit
         VAULT_ADDR=http://127.0.0.1:8200 vault write -f transit/keys/test-vault-rs
+    - run: cargo doc --verbose
     - run: cargo test --verbose
 
   rustfmt:
