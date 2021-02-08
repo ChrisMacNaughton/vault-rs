@@ -25,7 +25,7 @@ jobs:
         include:
         - build: pinned
           os: ubuntu-18.04
-          rust: 1.38.0
+          rust: 1.42.0
           vault_version: '1.6.2'
         - build: stable
           os: ubuntu-18.04
