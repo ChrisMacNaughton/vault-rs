@@ -113,7 +113,9 @@ pub enum VaultNumUses {
 }
 
 impl Default for VaultNumUses {
-    fn default() -> Self { VaultNumUses::Unlimited }
+    fn default() -> Self {
+        VaultNumUses::Unlimited
+    }
 }
 
 impl From<u64> for VaultNumUses {
@@ -980,9 +982,7 @@ where
     }
 
     fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref()
-            .replace("\n", "\\n")
-            .replace("\"", "\\\"")
+        input.as_ref().replace("\n", "\\n").replace("\"", "\\\"")
     }
 
     ///

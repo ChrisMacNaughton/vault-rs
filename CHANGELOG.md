@@ -1,3 +1,9 @@
+## NEXT
+
+FEATURES
+
+- Update tested Vault releases to include latest versions.
+
 ## 1.1.0
 
 FEATURES

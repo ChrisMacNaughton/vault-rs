@@ -135,12 +135,12 @@ mod tests {
     }
 
     #[test]
-    fn it_can_create_a_client_from_a_string_reference(){
+    fn it_can_create_a_client_from_a_string_reference() {
         let _ = Client::new(&HOST.to_string(), TOKEN).unwrap();
     }
 
     #[test]
-    fn it_can_create_a_client_from_a_string(){
+    fn it_can_create_a_client_from_a_string() {
         let _ = Client::new(HOST.to_string(), TOKEN).unwrap();
     }
 
@@ -236,7 +236,9 @@ mod tests {
         // Older vault versions (<1.2.0) seem to have an AppRole backend
         // enabled by default, so calling the POST to create a new one
         // fails with a 400 status
-        let _ : EndpointResponse<()> = c.call_endpoint(DELETE, "sys/auth/approle", None, None).unwrap();
+        let _: EndpointResponse<()> = c
+            .call_endpoint(DELETE, "sys/auth/approle", None, None)
+            .unwrap();
         // enable approle auth backend
         let mut res: EndpointResponse<()> = c
             .call_endpoint(POST, "sys/auth/approle", None, Some(body))
