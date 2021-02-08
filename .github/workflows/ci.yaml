@@ -11,13 +11,13 @@ jobs:
     strategy:
       matrix:
         vault_version:
-          - '1.0.0'
-          - '1.1.5'
-          - '1.2.7'
-          - '1.3.10'
-          - '1.4.7'
-          - '1.5.7'
-          - '1.6.2'
+          - 1.0.0
+          - 1.1.5
+          - 1.2.7
+          - 1.3.10
+          - 1.4.7
+          - 1.5.7
+          - 1.6.2
         # The docs seem to suggest that we can have a matrix with just an
         # include directive, but it results in a "matrix must define at least
         # one vector" error in the CI system.
