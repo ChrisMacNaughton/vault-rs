@@ -3,6 +3,7 @@
 FEATURES
 
 - Update tested Vault releases to include latest versions.
+- Migrate CI testing to Github actions.
 
 ## 1.1.0
 
