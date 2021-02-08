@@ -381,8 +381,8 @@ pub struct WrapData {
 }
 
 /// Token Types
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub enum TokenType {
     /// Batch tokens are encrypted blobs that carry enough information
     /// for them to be used for Vault actions, but they require no
