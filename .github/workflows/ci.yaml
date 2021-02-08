@@ -56,11 +56,10 @@ jobs:
       env:
         VAULT_VERSION: ${{ matrix.vault_versions }}
     - run: >
-        export PATH=$HOME/bin:$PATH
-        vault server -dev > /dev/null 2>&1 &
-        VAULT_ADDR=http://127.0.0.1:8200 vault token create -id="test12345" -ttl="720h"
-        VAULT_ADDR=http://127.0.0.1:8200 vault secrets enable transit
-        VAULT_ADDR=http://127.0.0.1:8200 vault write -f transit/keys/test-vault-rs
+        $HOME/bin/vault server -dev > /dev/null 2>&1 &
+        VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault token create -id="test12345" -ttl="720h"
+        VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault secrets enable transit
+        VAULT_ADDR=http://127.0.0.1:8200 $HOME/bin/vault write -f transit/keys/test-vault-rs
     - run: cargo test --verbose
 
   rustfmt:
