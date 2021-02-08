@@ -123,6 +123,7 @@ mod tests {
     use crate::client::{self, EndpointResponse};
     use crate::Error;
     use reqwest::StatusCode;
+    use serde::{Deserialize, Serialize};
 
     /// vault host for testing
     const HOST: &str = "http://127.0.0.1:8200";
@@ -391,5 +392,24 @@ mod tests {
             EndpointResponse::Empty => {}
             _ => panic!("expected empty response, received: {:?}", res),
         }
+    }
+
+    #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+    struct CustomSecretType {
+        name: String,
+    }
+
+    #[test]
+    fn it_can_set_and_get_a_custom_secret_type() {
+        let input = CustomSecretType {
+            name: "test".into(),
+        };
+
+        let client = Client::new(HOST, TOKEN).unwrap();
+
+        let res = client.set_custom_secret("custom_type", &input);
+        assert!(res.is_ok());
+        let res: CustomSecretType = client.get_custom_secret("custom_type").unwrap();
+        assert_eq!(res, input);
     }
 }

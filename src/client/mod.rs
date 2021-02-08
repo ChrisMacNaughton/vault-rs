@@ -625,6 +625,16 @@ pub enum HttpVerb {
     LIST,
 }
 
+#[derive(Debug, Serialize)]
+struct SecretContainer<T: Serialize> {
+    data: T,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct DefaultSecretType<T: AsRef<str>> {
+    value: T,
+}
+
 /// endpoint response variants
 #[derive(Debug)]
 pub enum EndpointResponse<D> {
@@ -968,21 +978,47 @@ where
     /// assert!(res.is_ok());
     /// ```
     pub fn set_secret<S1: Into<String>, S2: AsRef<str>>(&self, key: S1, value: S2) -> Result<()> {
-        let _ = self.post::<_, String>(
-            &format!("/v1/secret/data/{}", key.into())[..],
-            Some(
-                &format!(
-                    "{{\"data\": {{\"value\": \"{}\"}}}}",
-                    self.escape(value.as_ref())
-                )[..],
-            ),
+        let secret = DefaultSecretType {
+            value: value.as_ref(),
+        };
+        self.set_custom_secret(key, &secret)
+    }
+
+    /// Saves a secret
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct MyThing {
+    ///   awesome: String,
+    ///   thing: String,
+    /// }
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    /// let secret = MyThing {
+    ///   awesome: "I really am cool".into(),
+    ///   thing: "this is also in the secret".into(),
+    /// };
+    /// let res = client.set_custom_secret("hello_set", &secret);
+    /// assert!(res.is_ok());
+    /// ```
+    pub fn set_custom_secret<S1, S2>(&self, secret_name: S1, secret: &S2) -> Result<()>
+    where
+        S1: Into<String>,
+        S2: Serialize,
+    {
+        let secret = SecretContainer { data: secret };
+        let json = serde_json::to_string(&secret)?;
+        let _ = self.put::<_, String>(
+            &format!("/v1/secret/data/{}", secret_name.into())[..],
+            Some(&json),
             None,
         )?;
         Ok(())
-    }
-
-    fn escape<S: AsRef<str>>(&self, input: S) -> String {
-        input.as_ref().replace("\n", "\\n").replace("\"", "\\\"")
     }
 
     ///
@@ -1036,10 +1072,49 @@ where
     /// assert_eq!(res.unwrap(), "world");
     /// ```
     pub fn get_secret<S: AsRef<str>>(&self, key: S) -> Result<String> {
-        let res = self.get::<_, String>(&format!("/v1/secret/data/{}", key.as_ref())[..], None)?;
-        let decoded: VaultResponse<SecretDataWrapper<SecretData>> = parse_vault_response(res)?;
+        let secret: DefaultSecretType<String> = self.get_custom_secret(key)?;
+        Ok(secret.value)
+    }
+
+    ///
+    /// Fetches a saved secret
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Debug, Deserialize, Serialize)]
+    /// struct MyThing {
+    ///   awesome: String,
+    ///   thing: String,
+    /// }
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let client = Client::new(host, token).unwrap();
+    /// let secret = MyThing {
+    ///   awesome: "I really am cool".into(),
+    ///   thing: "this is also in the secret".into(),
+    /// };
+    /// let res1 = client.set_custom_secret("custom_secret", &secret);
+    /// assert!(res1.is_ok());
+    /// let res2: Result<MyThing, _> = client.get_custom_secret("custom_secret");
+    /// assert!(res2.is_ok());
+    /// let thing = res2.unwrap();
+    /// assert_eq!(thing.awesome, "I really am cool");
+    /// assert_eq!(thing.thing, "this is also in the secret");
+    /// ```
+    pub fn get_custom_secret<S: AsRef<str>, S2: DeserializeOwned + std::fmt::Debug>(
+        &self,
+        secret_name: S,
+    ) -> Result<S2> {
+        let res = self.get::<_, String>(
+            &format!("/v1/secret/data/{}", secret_name.as_ref())[..],
+            None,
+        )?;
+        let decoded: VaultResponse<SecretDataWrapper<S2>> = parse_vault_response(res)?;
         match decoded.data {
-            Some(data) => Ok(data.data.value),
+            Some(data) => Ok(data.data),
             _ => Err(Error::Vault(format!(
                 "No secret found in response: `{:#?}`",
                 decoded
