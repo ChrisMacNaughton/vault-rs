@@ -56,7 +56,9 @@ jobs:
       env:
         VAULT_VERSION: ${{ matrix.vault_versions }}
     - name: Start vault
-      run: $HOME/bin/vault server -dev > /dev/null 2>&1 &
+      run: $HOME/bin/vault server -dev -dev-root-token-id=test-root-123 > /dev/null 2>&1 &
+    - name: Setup loval vault token file
+      run: echo 'test-root-123' > $HOME/.vault-token
     - name: Create Vault token
       run: $HOME/bin/vault token create -id="test12345" -ttl="720h"
       env:
