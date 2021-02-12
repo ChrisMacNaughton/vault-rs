@@ -1,4 +1,8 @@
-## NEXT
+## 2.0.1
+
+SECURITY FIXES
+
+- Resolve https://rustsec.org/advisories/RUSTSEC-2021-0020 via https://github.com/ChrisMacNaughton/vault-rs/pull/45.
 
 FEATURES
 
