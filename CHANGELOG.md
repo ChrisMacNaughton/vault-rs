@@ -4,6 +4,10 @@ FEATURES
 
 - Update tested Vault releases to include latest versions.
 - Migrate CI testing to Github actions.
+- Add support for custoim secret types (https://github.com/ChrisMacNaughton/vault-rs/pull/44).
+  
+  The new secret types allow for managing arbitrary data in Vault
+  as long as the data is serializable!
 
 BREAKING CHANGES
 
