@@ -7,7 +7,12 @@ use std::str::FromStr;
 
 use crate::client::error::{Error, Result};
 use base64;
-use reqwest::{self, header::CONTENT_TYPE, Client, Method, Response};
+use reqwest::{
+    self,
+    blocking::{Client, Response},
+    header::CONTENT_TYPE,
+    Method,
+};
 use serde::de::{self, DeserializeOwned, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

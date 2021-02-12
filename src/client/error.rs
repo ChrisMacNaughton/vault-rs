@@ -26,7 +26,7 @@ quick_error! {
         }
         /// Response from Vault errors
         /// This is for when the response is not successful.
-        VaultResponse(err: String, response: reqwest::Response) {
+        VaultResponse(err: String, response: reqwest::blocking::Response) {
             description("vault response error")
             display("Error in vault response: {}", err)
         }
