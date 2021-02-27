@@ -250,6 +250,8 @@ pub struct VaultClient<T> {
     client: Client,
     /// Data
     pub data: Option<VaultResponse<T>>,
+    /// The secret backend name. Defaults to 'secret'
+    secret_backend: String,
 }
 
 /// Token data, used in `VaultResponse`
@@ -670,6 +672,7 @@ impl VaultClient<TokenData> {
             token,
             client,
             data: Some(decoded),
+            secret_backend: "secret".into(),
         })
     }
 }
@@ -715,6 +718,7 @@ impl VaultClient<()> {
             token,
             client,
             data: Some(decoded),
+            secret_backend: "secret".into(),
         })
     }
 
@@ -761,6 +765,7 @@ impl VaultClient<()> {
             token,
             client,
             data: Some(decoded),
+            secret_backend: "secret".into(),
         })
     }
 
@@ -780,6 +785,7 @@ impl VaultClient<()> {
             token: token.into(),
             client,
             data: None,
+            secret_backend: "secret".into(),
         })
     }
 }
@@ -788,6 +794,20 @@ impl<T> VaultClient<T>
 where
     T: DeserializeOwned,
 {
+    /// Set the backend name to be used by this VaultClient
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    ///
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client = Client::new(host, token).unwrap();
+    /// client.secret_backend("my_secrets");
+    /// ```
+    pub fn secret_backend<S1: Into<String>>(&mut self, backend_name: S1) {
+        self.secret_backend = backend_name.into();
+    }
     /// Renew lease for `VaultClient`'s token and updates the
     /// `self.data.auth` based upon the response.  Corresponds to
     /// [`/auth/token/renew-self`][token].
@@ -1019,7 +1039,7 @@ where
         let secret = SecretContainer { data: secret };
         let json = serde_json::to_string(&secret)?;
         let _ = self.put::<_, String>(
-            &format!("/v1/secret/data/{}", secret_name.into())[..],
+            &format!("/v1/{}/data/{}", self.secret_backend, secret_name.into())[..],
             Some(&json),
             None,
         )?;
@@ -1046,7 +1066,7 @@ where
     /// ```
     pub fn list_secrets<S: AsRef<str>>(&self, key: S) -> Result<Vec<String>> {
         let res = self.list::<_, String>(
-            &format!("/v1/secret/metadata/{}", key.as_ref())[..],
+            &format!("/v1/{}/metadata/{}", self.secret_backend, key.as_ref())[..],
             None,
             None,
         )?;
@@ -1114,7 +1134,7 @@ where
         secret_name: S,
     ) -> Result<S2> {
         let res = self.get::<_, String>(
-            &format!("/v1/secret/data/{}", secret_name.as_ref())[..],
+            &format!("/v1/{}/data/{}", self.secret_backend, secret_name.as_ref())[..],
             None,
         )?;
         let decoded: VaultResponse<SecretDataWrapper<S2>> = parse_vault_response(res)?;
@@ -1135,7 +1155,7 @@ where
         wrap_ttl: S2,
     ) -> Result<VaultResponse<()>> {
         let res = self.get(
-            &format!("/v1/secret/data/{}", key.as_ref())[..],
+            &format!("/v1/{}/data/{}", self.secret_backend, key.as_ref())[..],
             Some(wrap_ttl.as_ref()),
         )?;
         parse_vault_response(res)
@@ -1329,7 +1349,7 @@ where
     /// assert!(res.is_ok());
     /// ```
     pub fn delete_secret(&self, key: &str) -> Result<()> {
-        let _ = self.delete(&format!("/v1/secret/data/{}", key)[..])?;
+        let _ = self.delete(&format!("/v1/{}/data/{}", self.secret_backend, key)[..])?;
         Ok(())
     }
 
