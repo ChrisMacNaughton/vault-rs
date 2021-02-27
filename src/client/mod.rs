@@ -288,9 +288,13 @@ pub struct TokenData {
 }
 
 /// Secret data, used in `VaultResponse`
+///
+/// This struct should onlly ever be necessary for advanced users who
+/// are creating and parsing Vault responses manually.
 #[derive(Deserialize, Serialize, Debug)]
-struct SecretDataWrapper<D> {
-    data: D,
+pub struct SecretDataWrapper<D> {
+    /// data is an opaque data type that holds the response from Vault.
+    pub data: D,
 }
 
 /// Actual Secret data, used in `VaultResponse`
@@ -1550,7 +1554,103 @@ fn handle_reqwest_response(res: StdResult<Response, reqwest::Error>) -> Result<R
     }
 }
 
-fn parse_vault_response<T>(res: Response) -> Result<T>
+///
+/// Parse a vault response manually
+///
+/// ```
+/// # extern crate hashicorp_vault as vault;
+/// # use vault::Client;
+/// use std::io::Read;
+/// use vault::{Error, Result, client::{VaultResponse, SecretDataWrapper}, TryInto};
+/// use std::result::Result as StdResult;
+/// use reqwest::{
+///    blocking::{Client as ReqwestClient, Response},
+///    header::CONTENT_TYPE,
+///    Method,
+///  };
+/// use serde::{Deserialize, Serialize};
+/// use url::Url;
+///
+/// #[derive(Debug, Deserialize, Serialize)]
+/// struct MyThing {
+///   awesome: String,
+///   thing: String,
+/// }
+///
+/// fn handle_reqwest_response(res: StdResult<Response, reqwest::Error>) -> Result<Response> {
+///     let mut res = res?;
+///     if res.status().is_success() {
+///         Ok(res)
+///     } else {
+///         let mut error_msg = String::new();
+///         let _ = res.read_to_string(&mut error_msg).unwrap_or({
+///             error_msg.push_str("Could not read vault response.");
+///             0
+///         });
+///         Err(Error::VaultResponse(
+///             format!(
+///                 "Vault request failed: {:?}, error message: `{}`",
+///                 res, error_msg
+///             ),
+///             res,
+///         ))
+///     }
+/// }
+/// fn get<S1: AsRef<str>, S2: Into<String>, U: TryInto<Url, Err = Error>>(
+///     host: U,
+///     token: &str,
+///     endpoint: S1,
+///     wrap_ttl: Option<S2>,
+/// ) -> Result<Response> {
+/// let host = host.try_into()?;
+///     let h = host.join(endpoint.as_ref())?;
+///     let client = ReqwestClient::new();;
+///     match wrap_ttl {
+///         Some(wrap_ttl) => Ok(handle_reqwest_response(
+///             client
+///                 .request(Method::GET, h)
+///                 .header("X-Vault-Token", token.to_string())
+///                 .header(CONTENT_TYPE, "application/json")
+///                 .header("X-Vault-Wrap-TTL", wrap_ttl.into())
+///                 .send(),
+///         )?),
+///         None => Ok(handle_reqwest_response(
+///             client
+///                 .request(Method::GET, h)
+///                 .header("X-Vault-Token", token.to_string())
+///                 .header(CONTENT_TYPE, "application/json")
+///                 .send(),
+///         )?),
+///     }
+/// }
+/// let host = "http://127.0.0.1:8200";
+/// let token = "test12345";
+/// let client = Client::new(host, token).unwrap();
+/// let secret = MyThing {
+///   awesome: "I really am cool".into(),
+///   thing: "this is also in the secret".into(),
+/// };
+/// let res1 = client.set_custom_secret("custom_secret", &secret);
+/// assert!(res1.is_ok());
+/// let res = get::<&str, &str, &str>(
+///     host,
+///     token,
+///     "/v1/secret/data/custom_secret",
+///     None,
+/// ).unwrap();
+/// let decoded: VaultResponse<SecretDataWrapper<MyThing>> = vault::client::parse_vault_response(res).unwrap();
+/// let res2 = match decoded.data {
+///     Some(data) => Ok(data.data),
+///     _ => Err(Error::Vault(format!(
+///         "No secret found in response: `{:#?}`",
+///         decoded
+///     ))),
+/// };
+/// assert!(res2.is_ok());
+/// let thing = res2.unwrap();
+/// assert_eq!(thing.awesome, "I really am cool");
+/// assert_eq!(thing.thing, "this is also in the secret");
+pub fn parse_vault_response<T>(res: Response) -> Result<T>
 where
     T: DeserializeOwned,
 {
