@@ -29,7 +29,7 @@ pub extern crate url;
 
 /// vault client
 pub mod client;
-pub use crate::client::error::Error;
+pub use crate::client::error::{Error, Result};
 pub use crate::client::VaultClient as Client;
 use url::Url;
 
