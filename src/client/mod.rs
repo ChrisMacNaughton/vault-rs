@@ -679,6 +679,33 @@ impl VaultClient<TokenData> {
             secret_backend: "secret".into(),
         })
     }
+    /// Construct a `VaultClient` from an existing vault token and reqwest::Client
+    pub fn new_from_reqwest<U, T: Into<String>>(
+        host: U,
+        token: T,
+        cli: Client,
+    ) -> Result<VaultClient<TokenData>>
+    where
+        U: TryInto<Url, Err = Error>,
+    {
+        let host = host.try_into()?;
+        let client = cli;
+        let token = token.into();
+        let res = handle_reqwest_response(
+            client
+                .get(host.join("/v1/auth/token/lookup-self")?)
+                .header("X-Vault-Token", token.clone())
+                .send(),
+        )?;
+        let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
+        Ok(VaultClient {
+            host,
+            token,
+            client,
+            data: Some(decoded),
+            secret_backend: "secret".into(),
+        })
+    }
 }
 
 impl VaultClient<()> {
