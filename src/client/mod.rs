@@ -238,6 +238,20 @@ impl<'de> Deserialize<'de> for VaultDateTime {
         deserializer.deserialize_str(VaultDateTimeVisitor)
     }
 }
+///
+/// VaultClientBuilder is a builder used to customize a VaultClient.
+///
+#[derive(Debug)]
+pub struct VaultClientBuilder {
+    host: Url,
+    token: Option<String>,
+    client: Option<Client>,
+    secret_backend: Option<String>,
+    app_id: Option<String>,
+    user_id: Option<String>,
+    role_id: Option<String>,
+    secret_id: Option<String>,
+}
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
@@ -655,9 +669,42 @@ pub enum EndpointResponse<D> {
     Empty,
 }
 
+
+impl VaultClientBuilder {
+    fn new<U>(host: U) -> Result<VaultClientBuilder>
+        where
+        U: TryInto<Url, Err = Error>,
+    {
+        Ok(VaultClientBuilder {
+            host: host.try_into()?,
+            token: None,
+            client: None,
+            secret_backend: None,
+            app_id: None,
+            user_id: None,
+            role_id: None,
+            secret_id: None,
+        })
+    }
+
+    /// Use an existing Vault token when initialising this client.
+    pub fn token<T: Into<String>>(&mut self, token: T) -> &mut Self {
+        self.token = Some(token.into());
+        self
+    }
+
+    /// Convert this VaultClientBuilder into a VaultClient.
+    pub fn build<T>(self) -> VaultClient<T>
+    where
+    T: DeserializeOwned, {
+        todo!()
+    }
+}
+
+
 impl VaultClient<TokenData> {
     /// Construct a `VaultClient` from an existing vault token
-    pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
+    pub fn new_from_token<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
     where
         U: TryInto<Url, Err = Error>,
     {
@@ -709,117 +756,123 @@ impl VaultClient<TokenData> {
 }
 
 impl VaultClient<()> {
-    /// Construct a `VaultClient` via the `App ID`
-    /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
-    ///
-    /// NOTE: This backend is now deprecated by vault.
-    #[deprecated(since = "0.6.1")]
-    pub fn new_app_id<U, S1: Into<String>, S2: Into<String>>(
-        host: U,
-        app_id: S1,
-        user_id: S2,
-    ) -> Result<VaultClient<()>>
-    where
-        U: TryInto<Url, Err = Error>,
-    {
-        let host = host.try_into()?;
-        let client = Client::new();
-        let payload = serde_json::to_string(&AppIdPayload {
-            app_id: app_id.into(),
-            user_id: user_id.into(),
-        })?;
-        let res = handle_reqwest_response(
-            client
-                .post(host.join("/v1/auth/app-id/login")?)
-                .body(payload)
-                .send(),
-        )?;
-        let decoded: VaultResponse<()> = parse_vault_response(res)?;
-        let token = match decoded.auth {
-            Some(ref auth) => auth.client_token.clone(),
-            None => {
-                return Err(Error::Vault(format!(
-                    "No client token found in response: `{:?}`",
-                    &decoded.auth
-                )))
-            }
-        };
-        Ok(VaultClient {
-            host,
-            token,
-            client,
-            data: Some(decoded),
-            secret_backend: "secret".into(),
-        })
-    }
-
-    /// Construct a `VaultClient` via the `AppRole`
-    /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
-    pub fn new_app_role<U, R, S>(
-        host: U,
-        role_id: R,
-        secret_id: Option<S>,
-    ) -> Result<VaultClient<()>>
-    where
-        U: TryInto<Url, Err = Error>,
-        R: Into<String>,
-        S: Into<String>,
-    {
-        let host = host.try_into()?;
-        let client = Client::new();
-        let secret_id = match secret_id {
-            Some(s) => Some(s.into()),
-            None => None,
-        };
-        let payload = serde_json::to_string(&AppRolePayload {
-            role_id: role_id.into(),
-            secret_id,
-        })?;
-        let res = handle_reqwest_response(
-            client
-                .post(host.join("/v1/auth/approle/login")?)
-                .body(payload)
-                .send(),
-        )?;
-        let decoded: VaultResponse<()> = parse_vault_response(res)?;
-        let token = match decoded.auth {
-            Some(ref auth) => auth.client_token.clone(),
-            None => {
-                return Err(Error::Vault(format!(
-                    "No client token found in response: `{:?}`",
-                    &decoded.auth
-                )))
-            }
-        };
-        Ok(VaultClient {
-            host,
-            token,
-            client,
-            data: Some(decoded),
-            secret_backend: "secret".into(),
-        })
-    }
-
-    /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
-    /// provided token is a single-use token.
-    ///
-    /// A common use case for this method is when a `wrapping_token` has been received and you want
-    /// to query the `sys/wrapping/unwrap` endpoint.
-    pub fn new_no_lookup<U, S: Into<String>>(host: U, token: S) -> Result<VaultClient<()>>
-    where
-        U: TryInto<Url, Err = Error>,
-    {
-        let client = Client::new();
-        let host = host.try_into()?;
-        Ok(VaultClient {
-            host,
-            token: token.into(),
-            client,
-            data: None,
-            secret_backend: "secret".into(),
-        })
+    /// Start building a VaultClient
+    pub fn new<U>(url: U) -> Result<VaultClientBuilder>
+    where U: TryInto<Url, Err = Error>, {
+        VaultClientBuilder::new(url)
     }
 }
+//     /// Construct a `VaultClient` via the `App ID`
+//     /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
+//     ///
+//     /// NOTE: This backend is now deprecated by vault.
+//     #[deprecated(since = "0.6.1")]
+//     pub fn new_app_id<U, S1: Into<String>, S2: Into<String>>(
+//         host: U,
+//         app_id: S1,
+//         user_id: S2,
+//     ) -> Result<VaultClient<()>>
+//     where
+//         U: TryInto<Url, Err = Error>,
+//     {
+//         let host = host.try_into()?;
+//         let client = Client::new();
+//         let payload = serde_json::to_string(&AppIdPayload {
+//             app_id: app_id.into(),
+//             user_id: user_id.into(),
+//         })?;
+//         let res = handle_reqwest_response(
+//             client
+//                 .post(host.join("/v1/auth/app-id/login")?)
+//                 .body(payload)
+//                 .send(),
+//         )?;
+//         let decoded: VaultResponse<()> = parse_vault_response(res)?;
+//         let token = match decoded.auth {
+//             Some(ref auth) => auth.client_token.clone(),
+//             None => {
+//                 return Err(Error::Vault(format!(
+//                     "No client token found in response: `{:?}`",
+//                     &decoded.auth
+//                 )))
+//             }
+//         };
+//         Ok(VaultClient {
+//             host,
+//             token,
+//             client,
+//             data: Some(decoded),
+//             secret_backend: "secret".into(),
+//         })
+//     }
+
+//     /// Construct a `VaultClient` via the `AppRole`
+//     /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
+//     pub fn new_app_role<U, R, S>(
+//         host: U,
+//         role_id: R,
+//         secret_id: Option<S>,
+//     ) -> Result<VaultClient<()>>
+//     where
+//         U: TryInto<Url, Err = Error>,
+//         R: Into<String>,
+//         S: Into<String>,
+//     {
+//         let host = host.try_into()?;
+//         let client = Client::new();
+//         let secret_id = match secret_id {
+//             Some(s) => Some(s.into()),
+//             None => None,
+//         };
+//         let payload = serde_json::to_string(&AppRolePayload {
+//             role_id: role_id.into(),
+//             secret_id,
+//         })?;
+//         let res = handle_reqwest_response(
+//             client
+//                 .post(host.join("/v1/auth/approle/login")?)
+//                 .body(payload)
+//                 .send(),
+//         )?;
+//         let decoded: VaultResponse<()> = parse_vault_response(res)?;
+//         let token = match decoded.auth {
+//             Some(ref auth) => auth.client_token.clone(),
+//             None => {
+//                 return Err(Error::Vault(format!(
+//                     "No client token found in response: `{:?}`",
+//                     &decoded.auth
+//                 )))
+//             }
+//         };
+//         Ok(VaultClient {
+//             host,
+//             token,
+//             client,
+//             data: Some(decoded),
+//             secret_backend: "secret".into(),
+//         })
+//     }
+
+//     /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
+//     /// provided token is a single-use token.
+//     ///
+//     /// A common use case for this method is when a `wrapping_token` has been received and you want
+//     /// to query the `sys/wrapping/unwrap` endpoint.
+//     pub fn new_no_lookup<U, S: Into<String>>(host: U, token: S) -> Result<VaultClient<()>>
+//     where
+//         U: TryInto<Url, Err = Error>,
+//     {
+//         let client = Client::new();
+//         let host = host.try_into()?;
+//         Ok(VaultClient {
+//             host,
+//             token: token.into(),
+//             client,
+//             data: None,
+//             secret_backend: "secret".into(),
+//         })
+//     }
+// }
 
 impl<T> VaultClient<T>
 where

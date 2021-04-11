@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn it_can_create_a_client() {
-        let _ = Client::new(HOST, TOKEN).unwrap();
+        let _ = Client::new(HOST).unwrap().token(TOKEN).build();
     }
 
     #[test]
