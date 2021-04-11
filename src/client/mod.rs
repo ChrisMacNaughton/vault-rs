@@ -723,7 +723,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let mut client = Client::new(host).token(token).secret_backend("my_secrets").unwrap();
+    /// let mut client: Client<serde_json::Value> = Client::new(host).token(token).secret_backend("my_secrets").build().unwrap();
     /// ```
     pub fn secret_backend<T: Into<String>>(&mut self, secret_backend: T) -> &mut Self {
         self.secret_backend = secret_backend.into();
@@ -835,7 +835,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let mut client = Client::new(host, token).unwrap();
+    /// let mut client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// client.renew().unwrap();
     /// ```
@@ -859,7 +859,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let token_to_renew = "test12345";
     /// client.renew_token(token_to_renew, None).unwrap();
@@ -887,13 +887,13 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, res.client_token).unwrap();
+    /// let mut new_client: Client<serde_json::Value> = Client::new(host).token(res.client_token).build().unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
@@ -920,7 +920,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// #[derive(Deserialize)]
     /// struct PacketKey {
@@ -956,7 +956,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let res = client.lookup().unwrap();
     /// assert!(res.data.unwrap().policies.len() >= 0);
@@ -978,7 +978,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let opts = client::TokenOptions::default()
     ///   .display_name("test_token")
@@ -992,7 +992,7 @@ where
     ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
     /// let res = client.create_token(&opts).unwrap();
     ///
-    /// # let new_client = Client::new(host, res.client_token).unwrap();
+    /// # let new_client: Client<serde_json::Value> = Client::new(host).token(res.client_token).build().unwrap();
     /// # new_client.revoke().unwrap();
     /// ```
     ///
@@ -1015,7 +1015,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
     /// ```
@@ -1040,7 +1040,7 @@ where
     /// }
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let secret = MyThing {
     ///   awesome: "I really am cool".into(),
     ///   thing: "this is also in the secret".into(),
@@ -1072,7 +1072,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello/fred", "world");
     /// assert!(res.is_ok());
     /// let res = client.set_secret("hello/bob", "world");
@@ -1106,7 +1106,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_get", "world");
     /// assert!(res.is_ok());
     /// let res = client.get_secret("hello_get");
@@ -1133,7 +1133,7 @@ where
     /// }
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let secret = MyThing {
     ///   awesome: "I really am cool".into(),
     ///   thing: "this is also in the secret".into(),
@@ -1212,7 +1212,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.transit_encrypt(None, "keyname", b"plaintext");
     /// ```
     pub fn transit_encrypt<S1: Into<String>, S2: AsRef<[u8]>>(
@@ -1259,7 +1259,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.transit_decrypt(None, "keyname", b"\x02af\x61bcb\x55d");
     /// ```
     pub fn transit_decrypt<S1: Into<String>, S2: AsRef<[u8]>>(
@@ -1359,7 +1359,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_delete", "world");
     /// assert!(res.is_ok());
     /// let res = client.delete_secret("hello_delete");
@@ -1384,7 +1384,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// #[derive(Deserialize)]
     /// struct PacketKey {
@@ -1412,7 +1412,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let res = client.policies().unwrap();
     /// assert!(res.contains(&"root".to_owned()));
@@ -1658,7 +1658,7 @@ fn handle_reqwest_response(res: StdResult<Response, reqwest::Error>) -> Result<R
 /// }
 /// let host = "http://127.0.0.1:8200";
 /// let token = "test12345";
-/// let client = Client::new(host, token).unwrap();
+/// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
 /// let secret = MyThing {
 ///   awesome: "I really am cool".into(),
 ///   thing: "this is also in the secret".into(),
