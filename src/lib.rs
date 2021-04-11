@@ -132,22 +132,24 @@ mod tests {
 
     #[test]
     fn it_can_create_a_client() {
-        let _ = Client::new(HOST).unwrap().token(TOKEN).build();
+        let _: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
     }
 
     #[test]
     fn it_can_create_a_client_from_a_string_reference() {
-        let _ = Client::new(&HOST.to_string(), TOKEN).unwrap();
+        let _: Client<serde_json::Value> =
+            Client::new(&HOST.to_string()).token(TOKEN).build().unwrap();
     }
 
     #[test]
     fn it_can_create_a_client_from_a_string() {
-        let _ = Client::new(HOST.to_string(), TOKEN).unwrap();
+        let _: Client<serde_json::Value> =
+            Client::new(HOST.to_string()).token(TOKEN).build().unwrap();
     }
 
     #[test]
     fn it_can_query_secrets() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let res = client.set_secret("hello_query", "world");
         assert!(res.is_ok());
         let res = client.get_secret("hello_query").unwrap();
@@ -156,7 +158,7 @@ mod tests {
 
     #[test]
     fn it_can_store_json_secrets() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let json = "{\"foo\": {\"bar\": [\"baz\"]}}";
         let res = client.set_secret("json_secret", json);
         assert!(res.is_ok());
@@ -166,7 +168,7 @@ mod tests {
 
     #[test]
     fn it_can_list_secrets() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
 
         let _res = client.set_secret("hello/fred", "world").unwrap();
         // assert!(res.is_ok());
@@ -184,7 +186,7 @@ mod tests {
 
     #[test]
     fn it_can_detect_404_status() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
 
         let res = client.list_secrets("non/existent/key");
         assert!(res.is_err());
@@ -198,7 +200,7 @@ mod tests {
 
     #[test]
     fn it_can_write_secrets_with_newline() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
 
         let res = client.set_secret("hello_set", "world\n");
         assert!(res.is_ok());
@@ -208,14 +210,15 @@ mod tests {
 
     #[test]
     fn it_returns_err_on_forbidden() {
-        let client = Client::new(HOST, "test123456");
+        let client: Result<Client<serde_json::Value>, Error> =
+            Client::new(HOST).token("test123456").build();
         // assert_eq!(Err("Forbidden".to_string()), client);
         assert!(client.is_err());
     }
 
     #[test]
     fn it_can_delete_a_secret() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
 
         let res = client.set_secret("hello_delete", "world");
         assert!(res.is_ok());
@@ -231,7 +234,7 @@ mod tests {
     fn it_can_perform_approle_workflow() {
         use std::collections::HashMap;
 
-        let c = Client::new(HOST, TOKEN).unwrap();
+        let c: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let mut body = "{\"type\":\"approle\"}";
         // Ensure we do not currently have an approle backend enabled.
         // Older vault versions (<1.2.0) seem to have an AppRole backend
@@ -278,7 +281,10 @@ mod tests {
         let secret_id = &data["secret_id"];
 
         // now finally we can try to actually login!
-        let _ = Client::new_app_role(HOST, &role_id[..], Some(&secret_id[..])).unwrap();
+        let _: Client<serde_json::Value> = Client::new(HOST)
+            .app_role(&role_id[..], Some(&secret_id[..]))
+            .build()
+            .unwrap();
 
         // clean up by disabling approle auth backend
         let res = c
@@ -289,14 +295,18 @@ mod tests {
 
     #[test]
     fn it_can_read_a_wrapped_secret() {
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let res = client.set_secret("hello_delete_2", "second world");
         assert!(res.is_ok());
         // wrap the secret's value in `sys/wrapping/unwrap` with a TTL of 2 minutes
         let res = client.get_secret_wrapped("hello_delete_2", "2m").unwrap();
         let wrapping_token = res.wrap_info.unwrap().token;
         // make a new client with the wrapping token
-        let c2 = Client::new_no_lookup(HOST, wrapping_token).unwrap();
+        let c2: Client<serde_json::Value> = Client::new(HOST)
+            .token(wrapping_token)
+            .lookup(false)
+            .build()
+            .unwrap();
         // read the cubbyhole response (can only do this once!)
         let res = c2.get_unwrapped_response().unwrap();
         assert_eq!(res.data.unwrap()["value"], "second world");
@@ -305,7 +315,10 @@ mod tests {
     #[test]
     fn it_can_store_policies() {
         // use trailing slash for host to ensure Url processing fixes this later
-        let c = Client::new("http://127.0.0.1:8200/", TOKEN).unwrap();
+        let c: Client<serde_json::Value> = Client::new("http://127.0.0.1:8200/")
+            .token(TOKEN)
+            .build()
+            .unwrap();
         let body = "{\"policy\":\"{}\"}";
         // enable approle auth backend
         let res: EndpointResponse<()> = c
@@ -357,7 +370,7 @@ mod tests {
 
     #[test]
     fn it_can_list_things() {
-        let c = Client::new(HOST, TOKEN).unwrap();
+        let c: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let _ = c
             .create_token(&client::TokenOptions::default().ttl(client::VaultDuration::minutes(1)))
             .unwrap();
@@ -378,7 +391,7 @@ mod tests {
         let key_id = "test-vault-rs";
         let plaintext = b"data\0to\0encrypt";
 
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
         let enc_resp = client.transit_encrypt(None, key_id, plaintext);
         let encrypted = enc_resp.unwrap();
         let dec_resp = client.transit_decrypt(None, key_id, encrypted);
@@ -405,7 +418,7 @@ mod tests {
             name: "test".into(),
         };
 
-        let client = Client::new(HOST, TOKEN).unwrap();
+        let client: Client<serde_json::Value> = Client::new(HOST).token(TOKEN).build().unwrap();
 
         let res = client.set_custom_secret("custom_type", &input);
         assert!(res.is_ok());
