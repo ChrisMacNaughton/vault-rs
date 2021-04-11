@@ -238,10 +238,26 @@ impl<'de> Deserialize<'de> for VaultDateTime {
         deserializer.deserialize_str(VaultDateTimeVisitor)
     }
 }
+///
+/// VaultClientBuilder is a builder used to customize a VaultClient.
+///
+#[derive(Debug)]
+pub struct VaultClientBuilder<U: TryInto<Url, Err = Error> + Clone> {
+    host: U,
+    token: Option<String>,
+    client: Option<Client>,
+    secret_backend: String,
+    role_id: Option<String>,
+    secret_id: Option<String>,
+    lookup: bool,
+}
 
 /// Vault client used to make API requests to the vault
 #[derive(Debug)]
-pub struct VaultClient<T> {
+pub struct VaultClient<T>
+where
+    T: DeserializeOwned,
+{
     /// URL to vault instance
     pub host: Url,
     /// Token to access vault
@@ -655,118 +671,132 @@ pub enum EndpointResponse<D> {
     Empty,
 }
 
-impl VaultClient<TokenData> {
-    /// Construct a `VaultClient` from an existing vault token
-    pub fn new<U, T: Into<String>>(host: U, token: T) -> Result<VaultClient<TokenData>>
-    where
-        U: TryInto<Url, Err = Error>,
-    {
-        let host = host.try_into()?;
-        let client = Client::new();
-        let token = token.into();
-        let res = handle_reqwest_response(
-            client
-                .get(host.join("/v1/auth/token/lookup-self")?)
-                .header("X-Vault-Token", token.clone())
-                .send(),
-        )?;
-        let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
-        Ok(VaultClient {
+impl<U> VaultClientBuilder<U>
+where
+    U: TryInto<Url, Err = Error> + Clone,
+{
+    fn new(host: U) -> VaultClientBuilder<U> {
+        VaultClientBuilder {
             host,
-            token,
-            client,
-            data: Some(decoded),
+            token: None,
+            client: None,
             secret_backend: "secret".into(),
-        })
+            role_id: None,
+            secret_id: None,
+            lookup: true,
+        }
     }
-    /// Construct a `VaultClient` from an existing vault token and reqwest::Client
-    pub fn new_from_reqwest<U, T: Into<String>>(
-        host: U,
-        token: T,
-        cli: Client,
-    ) -> Result<VaultClient<TokenData>>
+
+    /// Use an existing Vault token when initialising this client.
+    pub fn token<T: Into<String>>(&mut self, token: T) -> &mut Self {
+        self.token = Some(token.into());
+        self
+    }
+
+    /// Construct a `VaultClient` via the `AppRole`
+    /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
+    pub fn app_role<R, S>(&mut self, role_id: R, secret_id: Option<S>) -> &mut Self
     where
-        U: TryInto<Url, Err = Error>,
+        R: Into<String>,
+        S: Into<String>,
     {
-        let host = host.try_into()?;
-        let client = cli;
-        let token = token.into();
-        let res = handle_reqwest_response(
-            client
-                .get(host.join("/v1/auth/token/lookup-self")?)
-                .header("X-Vault-Token", token.clone())
-                .send(),
-        )?;
-        let decoded: VaultResponse<TokenData> = parse_vault_response(res)?;
+        self.role_id = Some(role_id.into());
+        self.secret_id = secret_id.map(|s| s.into());
+        self
+    }
+
+    /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
+    /// provided token is a single-use token.
+    ///
+    /// A common use case for this method is when a `wrapping_token` has been received and you want
+    /// to query the `sys/wrapping/unwrap` endpoint.
+    pub fn lookup(&mut self, lookup: bool) -> &mut Self {
+        self.lookup = lookup;
+        self
+    }
+
+    /// Set the backend name to be used by this VaultClient
+    ///
+    /// ```
+    /// # extern crate hashicorp_vault as vault;
+    /// # use vault::Client;
+    ///
+    /// let host = "http://127.0.0.1:8200";
+    /// let token = "test12345";
+    /// let mut client: Client<serde_json::Value> = Client::new(host).token(token).secret_backend("my_secrets").build().unwrap();
+    /// ```
+    pub fn secret_backend<T: Into<String>>(&mut self, secret_backend: T) -> &mut Self {
+        self.secret_backend = secret_backend.into();
+        self
+    }
+
+    /// Convert this VaultClientBuilder into a VaultClient.
+    pub fn build<T>(&self) -> Result<VaultClient<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let host = self.host.clone().try_into()?;
+        // let host: Url = host.clone();
+        let client = Client::new();
+
+        let (token, data): (String, Option<VaultResponse<T>>) = if let Some(token) = &self.token {
+            (
+                token.clone(),
+                if self.lookup {
+                    let res = handle_reqwest_response(
+                        client
+                            .get(host.join("/v1/auth/token/lookup-self")?)
+                            .header("X-Vault-Token", token)
+                            .send(),
+                    )?;
+                    parse_vault_response(res)?
+                } else {
+                    None
+                },
+            )
+        } else if let Some(role_id) = &self.role_id {
+            VaultClient::new_app_role(&host, &client, role_id, self.secret_id.clone())?
+        } else {
+            todo!()
+        };
+
         Ok(VaultClient {
             host,
             token,
             client,
-            data: Some(decoded),
-            secret_backend: "secret".into(),
+            data: data,
+            secret_backend: self.secret_backend.clone(),
         })
     }
 }
 
 impl VaultClient<()> {
-    /// Construct a `VaultClient` via the `App ID`
-    /// [auth backend](https://www.vaultproject.io/docs/auth/app-id.html)
-    ///
-    /// NOTE: This backend is now deprecated by vault.
-    #[deprecated(since = "0.6.1")]
-    pub fn new_app_id<U, S1: Into<String>, S2: Into<String>>(
-        host: U,
-        app_id: S1,
-        user_id: S2,
-    ) -> Result<VaultClient<()>>
+    /// Start building a VaultClient
+    pub fn new<U>(url: U) -> VaultClientBuilder<U>
     where
-        U: TryInto<Url, Err = Error>,
+        U: TryInto<Url, Err = Error> + Clone,
     {
-        let host = host.try_into()?;
-        let client = Client::new();
-        let payload = serde_json::to_string(&AppIdPayload {
-            app_id: app_id.into(),
-            user_id: user_id.into(),
-        })?;
-        let res = handle_reqwest_response(
-            client
-                .post(host.join("/v1/auth/app-id/login")?)
-                .body(payload)
-                .send(),
-        )?;
-        let decoded: VaultResponse<()> = parse_vault_response(res)?;
-        let token = match decoded.auth {
-            Some(ref auth) => auth.client_token.clone(),
-            None => {
-                return Err(Error::Vault(format!(
-                    "No client token found in response: `{:?}`",
-                    &decoded.auth
-                )))
-            }
-        };
-        Ok(VaultClient {
-            host,
-            token,
-            client,
-            data: Some(decoded),
-            secret_backend: "secret".into(),
-        })
+        VaultClientBuilder::new(url)
     }
+}
 
+// impl VaultClient<T> {
+impl<T> VaultClient<T>
+where
+    T: DeserializeOwned,
+{
     /// Construct a `VaultClient` via the `AppRole`
     /// [auth backend](https://www.vaultproject.io/docs/auth/approle.html)
-    pub fn new_app_role<U, R, S>(
-        host: U,
+    fn new_app_role<R, S>(
+        host: &Url,
+        client: &Client,
         role_id: R,
         secret_id: Option<S>,
-    ) -> Result<VaultClient<()>>
+    ) -> Result<(String, Option<VaultResponse<T>>)>
     where
-        U: TryInto<Url, Err = Error>,
         R: Into<String>,
         S: Into<String>,
     {
-        let host = host.try_into()?;
-        let client = Client::new();
         let secret_id = match secret_id {
             Some(s) => Some(s.into()),
             None => None,
@@ -781,7 +811,7 @@ impl VaultClient<()> {
                 .body(payload)
                 .send(),
         )?;
-        let decoded: VaultResponse<()> = parse_vault_response(res)?;
+        let decoded: VaultResponse<T> = parse_vault_response(res)?;
         let token = match decoded.auth {
             Some(ref auth) => auth.client_token.clone(),
             None => {
@@ -791,54 +821,10 @@ impl VaultClient<()> {
                 )))
             }
         };
-        Ok(VaultClient {
-            host,
-            token,
-            client,
-            data: Some(decoded),
-            secret_backend: "secret".into(),
-        })
+
+        Ok((token, Some(decoded)))
     }
 
-    /// Construct a `VaultClient` where no lookup is done through vault since it is assumed that the
-    /// provided token is a single-use token.
-    ///
-    /// A common use case for this method is when a `wrapping_token` has been received and you want
-    /// to query the `sys/wrapping/unwrap` endpoint.
-    pub fn new_no_lookup<U, S: Into<String>>(host: U, token: S) -> Result<VaultClient<()>>
-    where
-        U: TryInto<Url, Err = Error>,
-    {
-        let client = Client::new();
-        let host = host.try_into()?;
-        Ok(VaultClient {
-            host,
-            token: token.into(),
-            client,
-            data: None,
-            secret_backend: "secret".into(),
-        })
-    }
-}
-
-impl<T> VaultClient<T>
-where
-    T: DeserializeOwned,
-{
-    /// Set the backend name to be used by this VaultClient
-    ///
-    /// ```
-    /// # extern crate hashicorp_vault as vault;
-    /// # use vault::Client;
-    ///
-    /// let host = "http://127.0.0.1:8200";
-    /// let token = "test12345";
-    /// let mut client = Client::new(host, token).unwrap();
-    /// client.secret_backend("my_secrets");
-    /// ```
-    pub fn secret_backend<S1: Into<String>>(&mut self, backend_name: S1) {
-        self.secret_backend = backend_name.into();
-    }
     /// Renew lease for `VaultClient`'s token and updates the
     /// `self.data.auth` based upon the response.  Corresponds to
     /// [`/auth/token/renew-self`][token].
@@ -849,7 +835,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let mut client = Client::new(host, token).unwrap();
+    /// let mut client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// client.renew().unwrap();
     /// ```
@@ -873,7 +859,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let token_to_renew = "test12345";
     /// client.renew_token(token_to_renew, None).unwrap();
@@ -901,13 +887,13 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// // Create a temporary token, and use it to create a new client.
     /// let opts = client::TokenOptions::default()
     ///   .ttl(client::VaultDuration::minutes(5));
     /// let res = client.create_token(&opts).unwrap();
-    /// let mut new_client = Client::new(host, res.client_token).unwrap();
+    /// let mut new_client: Client<serde_json::Value> = Client::new(host).token(res.client_token).build().unwrap();
     ///
     /// // Issue and use a bunch of temporary dynamic credentials.
     ///
@@ -934,7 +920,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// #[derive(Deserialize)]
     /// struct PacketKey {
@@ -970,7 +956,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let res = client.lookup().unwrap();
     /// assert!(res.data.unwrap().policies.len() >= 0);
@@ -992,7 +978,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let opts = client::TokenOptions::default()
     ///   .display_name("test_token")
@@ -1006,7 +992,7 @@ where
     ///   .explicit_max_ttl(client::VaultDuration::minutes(3));
     /// let res = client.create_token(&opts).unwrap();
     ///
-    /// # let new_client = Client::new(host, res.client_token).unwrap();
+    /// # let new_client: Client<serde_json::Value> = Client::new(host).token(res.client_token).build().unwrap();
     /// # new_client.revoke().unwrap();
     /// ```
     ///
@@ -1029,7 +1015,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_set", "world");
     /// assert!(res.is_ok());
     /// ```
@@ -1054,7 +1040,7 @@ where
     /// }
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let secret = MyThing {
     ///   awesome: "I really am cool".into(),
     ///   thing: "this is also in the secret".into(),
@@ -1086,7 +1072,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello/fred", "world");
     /// assert!(res.is_ok());
     /// let res = client.set_secret("hello/bob", "world");
@@ -1120,7 +1106,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_get", "world");
     /// assert!(res.is_ok());
     /// let res = client.get_secret("hello_get");
@@ -1147,7 +1133,7 @@ where
     /// }
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let secret = MyThing {
     ///   awesome: "I really am cool".into(),
     ///   thing: "this is also in the secret".into(),
@@ -1226,7 +1212,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.transit_encrypt(None, "keyname", b"plaintext");
     /// ```
     pub fn transit_encrypt<S1: Into<String>, S2: AsRef<[u8]>>(
@@ -1273,7 +1259,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.transit_decrypt(None, "keyname", b"\x02af\x61bcb\x55d");
     /// ```
     pub fn transit_decrypt<S1: Into<String>, S2: AsRef<[u8]>>(
@@ -1373,7 +1359,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     /// let res = client.set_secret("hello_delete", "world");
     /// assert!(res.is_ok());
     /// let res = client.delete_secret("hello_delete");
@@ -1398,7 +1384,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// #[derive(Deserialize)]
     /// struct PacketKey {
@@ -1426,7 +1412,7 @@ where
     ///
     /// let host = "http://127.0.0.1:8200";
     /// let token = "test12345";
-    /// let client = Client::new(host, token).unwrap();
+    /// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
     ///
     /// let res = client.policies().unwrap();
     /// assert!(res.contains(&"root".to_owned()));
@@ -1672,7 +1658,7 @@ fn handle_reqwest_response(res: StdResult<Response, reqwest::Error>) -> Result<R
 /// }
 /// let host = "http://127.0.0.1:8200";
 /// let token = "test12345";
-/// let client = Client::new(host, token).unwrap();
+/// let client: Client<serde_json::Value> = Client::new(host).token(token).build().unwrap();
 /// let secret = MyThing {
 ///   awesome: "I really am cool".into(),
 ///   thing: "this is also in the secret".into(),
