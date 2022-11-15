@@ -124,6 +124,7 @@ mod tests {
     use crate::Error;
     use reqwest::StatusCode;
     use serde::{Deserialize, Serialize};
+    use serde_json::Value;
 
     /// vault host for testing
     const HOST: &str = "http://127.0.0.1:8200";
@@ -268,14 +269,14 @@ mod tests {
         assert!(!role_id.is_empty());
 
         // now get a secret id for this approle
-        let res: EndpointResponse<HashMap<String, String>> = c
+        let res: EndpointResponse<HashMap<String, Value>> = c
             .call_endpoint(POST, "auth/approle/role/test_role/secret-id", None, None)
             .unwrap();
         let data = match res {
             EndpointResponse::VaultResponse(res) => res.data.unwrap(),
             _ => panic!("expected vault response, got: {:?}", res),
         };
-        let secret_id = &data["secret_id"];
+        let secret_id = &data["secret_id"].as_str().unwrap();
 
         // now finally we can try to actually login!
         let _ = Client::new_app_role(HOST, &role_id[..], Some(&secret_id[..])).unwrap();
